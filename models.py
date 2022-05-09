@@ -1,3 +1,7 @@
+#################################
+#####	 NI FILE BUAT APA? 	#####
+#################################
+
 """Application Models"""
 from os import name
 from typing import Text

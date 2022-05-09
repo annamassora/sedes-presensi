@@ -8,13 +8,14 @@ def token_required(f):
    def decorator(*args, **kwargs):
       token = None 
       current_app.logger.debug(request.headers)
+
       if 'token' in request.headers:  
          token = request.headers['token'] 
       if not token:  
          return jsonify({'message': 'a valid token is missing'})
       try:  
          data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-         print(data)
+         print(token)
          current_user=None
          if data['role']==0:
             current_user = {
@@ -30,6 +31,5 @@ def token_required(f):
 
       except:  
          return jsonify({'message': 'token is invalid'})
-
-      return f(current_user, *args,  **kwargs)  
+      return f(current_user, *args,  **kwargs)
    return decorator 

@@ -13,7 +13,7 @@ import json
 from json import JSONEncoder
 load_dotenv()
 app = Flask(__name__)
-cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
+cors = CORS(app, resources={r"/api/*": {"origins": "*"}}) #API TU BUAT APA?
 SECRET_KEY = os.environ.get('SECRET_KEY') or 'this is a secret'
 print(SECRET_KEY)
 app.config['SECRET_KEY'] = SECRET_KEY
@@ -22,11 +22,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 from models import *
-
-@app.route("/")
-def hello():
-    return "Hello World!"
-
 
 @app.route('/api/register', methods=['POST'])
 def signup_user():  
@@ -48,7 +43,6 @@ def signup_user():
       db.session.add(student)
    db.session.commit()
    return jsonify({'message': 'registered successfully'})   
-
 
 @app.route('/api/login', methods=['POST'])  
 def login_user():
@@ -80,29 +74,20 @@ def login_user():
                'role':user.role
                }
          app.logger.debug(f"current_user : current_user")
-         return jsonify({'token' : token, "user":current_user, 'status':200})
+         return jsonify({'access':{ 'token' : token, "user":current_user,}, 'status':200})
    return jsonify({'status':'unauthorized', 'status':600})    
+
+@app.route('/api/attendance', methods=['POST']) 
+@token_required
+def attendance(current_user):
+   attendance =  request.json["data"]
+   app.logger.debug(f"attendance :  {request.json['data']}")
+   return jsonify({'data':attendance, 'status':200})
 
 
 @app.route('/api/user', methods=['GET'])
 @token_required
 def get_all_users(current_user):
-   if current_user["role"]==1 : 
-      return jsonify({'status': 401, 'messege':"not a teacher"})
-   print("current_user ", current_user["user"].fullname)
-   users = Student.query.all() 
-   result = []   
-   for user in users:   
-       user_data = {}   
-       user_data['nisn'] = user.nisn  
-       user_data['name'] = user.fullname
-       result.append(user_data)   
-   return jsonify({'status':200,'users': result})
-
-
-@app.route('/api/presensi', methods=['GET'])
-@token_required
-def presensi(current_user):
    if current_user["role"]==1 : 
       return jsonify({'status': 401, 'messege':"not a teacher"})
    print("current_user ", current_user["user"].fullname)
@@ -144,7 +129,6 @@ def get_mapel(current_user):
        user_data['name'] = user.fullname
        result.append(user_data)   
    return jsonify({'status':200,'users': result})  
-
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,11 +1,7 @@
-#################################
-#####   NI FILE BUAT APA?   #####
-#################################
 """Validator Module"""
 import re
 from bson.objectid import ObjectId
 
-#WHY HARUS 1 FILE, TOLONG JELASKAN DIBAWAH
 def validate(data, regex):
     """Custom Validator"""
     return True if re.match(regex, data) else False

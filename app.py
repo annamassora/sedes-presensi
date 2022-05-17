@@ -4,6 +4,7 @@ from xml.dom.minidom import Identified
 import jwt, os
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
+from sqlalchemy import Float, String
 from validate import validate_book, validate_email_and_password, validate_user
 from models import db
 from auth_middleware import token_required
@@ -44,6 +45,7 @@ def signup_user():
    db.session.commit()
    return jsonify({'message': 'registered successfully'})   
 
+
 @app.route('/api/login', methods=['POST'])  
 def login_user():
    print("login")
@@ -77,13 +79,41 @@ def login_user():
          return jsonify({'access':{ 'token' : token, "user":current_user,}, 'status':200})
    return jsonify({'status':'unauthorized', 'status':600})    
 
-@app.route('/api/attendance', methods=['POST']) 
+
+@app.route('/api/checkin', methods=['POST']) 
 @token_required
 def attendance(current_user):
-   attendance =  request.json["data"]
-   app.logger.debug(f"attendance :  {request.json['data']}")
-   return jsonify({'data':attendance, 'status':200})
+   temperature =  request.form.get("temperature",type = Float)
+   qrString =  request.form.get("qrString",type = str)
+   checkget_qr_code(qrString)
+   if qrString["status"]!=200:  
+      return jsonify({'message': 'qr_code is invalid'})
+   else:
+      app.logger.debug(f"attendance :  {temperature} {qrString} {current_user}")
+      qrData = jwt.decode(qrString, app.config['SECRET_KEY'], algorithms=['HS256'])
+      if current_user["role"]==0 : 
+         checkin = StudentAttendance(nisn=current_user["user"].nisn, temperature=float, check_in=datetime.datetime.now())
+         db.session.add(checkin)  
+      if current_user["role"]==1 : 
+         checkin = TeacherAttendance(nign=current_user["user"].nign, temperature=float, check_in=datetime.datetime.now())
+         db.session.add(checkin)
+      db.session.commit()
+      return jsonify({'data':temperature, 'statusMessage':"success", 'status':200})
 
+
+@app.route('/getQrCode', methods=['GET'])
+def get_qr_code():
+   location=request.args.get("location")
+   token = jwt.encode({'location':location, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=60)}, app.config['SECRET_KEY'])
+   return jsonify({'status':200,'qrToken': token})
+
+def checkget_qr_code(qrString):
+
+   try:
+      tokenData = jwt.decode(qrString, app.config['SECRET_KEY'], algorithms=['HS256'])
+      return jsonify({'status':200,'tokenData': tokenData})
+   except:
+      return jsonify({'status':402,'tokenData': "ERROR!!"})
 
 @app.route('/api/user', methods=['GET'])
 @token_required
@@ -99,6 +129,7 @@ def get_all_users(current_user):
        user_data['name'] = user.fullname
        result.append(user_data)   
    return jsonify({'status':200,'users': result})
+
 
 @app.route('/api/kelas', methods=['GET'])
 @token_required

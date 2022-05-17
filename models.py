@@ -8,9 +8,6 @@ from passlib.apps import custom_app_context as pwd_context
 
 db = SQLAlchemy()
 
-#################################
-#####		Siswa			#####
-#################################
 class Login(db.Model):  
 	__tablename__ = 'login'
 	id = db.Column(db.Integer,  primary_key = True, autoincrement=True)
@@ -20,6 +17,10 @@ class Login(db.Model):
 	role=db.Column(db.Integer)
 	def __unicode__(self):
 		return self.id
+
+#################################
+#####		Siswa			#####
+#################################
 
 class Student(db.Model):  
 	__tablename__ = 'student'
@@ -60,7 +61,7 @@ db.Index('idx_Teacher_fullname', Teacher.fullname)
 #################################
 class Class(db.Model):  
 	__tablename__ = 'class'
-	id_class = db.Column(db.Integer,  primary_key = True,)
+	id_class = db.Column(db.Integer,  primary_key = True,autoincrement=True)
 	fullname = db.Column(db.String(50))
 	period = db.Column(db.String(50))
 	nign = db.Column(db.String(50), db.ForeignKey('teacher.nign'))
@@ -79,7 +80,7 @@ db.Index('idx_Class_period', Class.period)
 
 class Course(db.Model):  
 	__tablename__ = 'course'
-	id_course = db.Column(db.Integer,  primary_key = True,)
+	id_course = db.Column(db.Integer,  primary_key = True,autoincrement=True)
 	fullname = db.Column(db.String(50))
 	id_class = db.Column(db.Integer, db.ForeignKey('class.id_class'))
 	nign = db.Column(db.String(50), db.ForeignKey('teacher.nign'))
@@ -96,7 +97,7 @@ db.Index('idx_Course_fullname', Course.fullname)
 
 class StudentAttendance(db.Model):  
 	__tablename__ = 'student_attendance'
-	id_sa = db.Column(db.Integer,  primary_key = True,)
+	id_sa = db.Column(db.Integer,  primary_key = True, autoincrement=True)
 	nisn = db.Column(db.String(50), db.ForeignKey('student.nisn'))
 	temperature = db.Column(db.Float(3))
 	check_in = db.Column(db.DateTime())
@@ -115,7 +116,7 @@ db.Index('idx_StudentAttendance_checkout', StudentAttendance.check_out)
 
 class TeacherAttendance(db.Model):  
 	__tablename__ = 'teacher_attendance'
-	id_ta = db.Column(db.Integer,  primary_key = True,)
+	id_ta = db.Column(db.Integer,  primary_key = True,autoincrement=True)
 	nign = db.Column(db.String(50), db.ForeignKey('teacher.nign'))
 	temperature = db.Column(db.Float(3))
 	check_in = db.Column(db.DateTime())
@@ -134,7 +135,7 @@ db.Index('idx_TeacherAttendance_checkout', TeacherAttendance.check_out)
 
 class TCAttendance(db.Model):  
 	__tablename__ = 'tc_attendance'
-	id_tca = db.Column(db.Integer,  primary_key = True,)
+	id_tca = db.Column(db.Integer,  primary_key = True,autoincrement=True)
 	nign = db.Column(db.String(50), db.ForeignKey('teacher.nign'))
 	attend_course = db.Column(db.DateTime())
 	id_attend = db.Column(db.Integer,  db.ForeignKey('course_attendance.id_attend'))
@@ -150,7 +151,7 @@ db.Index('idx_TCAttendance_attend', TCAttendance.attend_course)
 
 class SCAttendance(db.Model):  
 	__tablename__ = 'sc_attendance'
-	id_sca = db.Column(db.Integer,  primary_key = True,)
+	id_sca = db.Column(db.Integer,  primary_key = True,autoincrement=True)
 	nisn = db.Column(db.String(50),  db.ForeignKey('student.nisn'))
 	attend_course = db.Column(db.DateTime)
 	id_attend = db.Column(db.Integer,  db.ForeignKey('course_attendance.id_attend'))
@@ -166,7 +167,7 @@ db.Index('idx_SCAttendance_attend', SCAttendance.attend_course)
 
 class CourseAttendance(db.Model):  
 	__tablename__ = 'course_attendance'
-	id_attend = db.Column(db.Integer,  primary_key = True,)
+	id_attend = db.Column(db.Integer,  primary_key = True,autoincrement=True)
 	id_course = db.Column(db.Integer, db.ForeignKey('course.id_course'))
 	id_class = db.Column(db.Integer, db.ForeignKey('class.id_class'))
 	date = db.Column(db.Date)

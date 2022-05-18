@@ -99,9 +99,10 @@ class StudentAttendance(db.Model):
 	__tablename__ = 'student_attendance'
 	id_sa = db.Column(db.Integer,  primary_key = True, autoincrement=True)
 	nisn = db.Column(db.String(50), db.ForeignKey('student.nisn'))
-	temperature = db.Column(db.Float(3))
+	location = db.Column(db.String(50))
+	temperature = db.Column(db.Numeric(14,2))
 	check_in = db.Column(db.DateTime())
-	check_out = db.Column(db.DateTime())
+	check_out = db.Column(db.DateTime(),nullable = True )
 	def __unicode__(self):
 		return self.id
 db.Index('idx_StudentAttendance_id', StudentAttendance.id_sa)
@@ -118,9 +119,10 @@ class TeacherAttendance(db.Model):
 	__tablename__ = 'teacher_attendance'
 	id_ta = db.Column(db.Integer,  primary_key = True,autoincrement=True)
 	nign = db.Column(db.String(50), db.ForeignKey('teacher.nign'))
-	temperature = db.Column(db.Float(3))
+	location = db.Column(db.String(50))
+	temperature = db.Column(db.Numeric(14,2))
 	check_in = db.Column(db.DateTime())
-	check_out = db.Column(db.DateTime())
+	check_out = db.Column(db.DateTime(),nullable = True )
 	def __unicode__(self):
 		return self.id
 db.Index('idx_TeacherAttendance_id', TeacherAttendance.id_ta)

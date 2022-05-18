@@ -1,11 +1,12 @@
 import datetime
+from unicodedata import decimal
 import uuid
+import logging
 from xml.dom.minidom import Identified
 import jwt, os
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
-from sqlalchemy import Float, String
-from validate import validate_book, validate_email_and_password, validate_user
+from sqlalchemy import Float, String, null
 from models import db
 from auth_middleware import token_required
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -79,56 +80,112 @@ def login_user():
          return jsonify({'access':{ 'token' : token, "user":current_user,}, 'status':200})
    return jsonify({'status':'unauthorized', 'status':600})    
 
+@app.route('/getQrCode', methods=['GET'])
+def get_qr_code():
+   location=request.args.get("location")
+   token = jwt.encode({'location':location}, app.config['SECRET_KEY'])
+   return jsonify({'status':200,'qrToken': token})
+
+def checkget_qr_code(qrString):
+   try:
+      tokenData = jwt.decode(qrString, app.config['SECRET_KEY'], algorithms=['HS256'])
+      print(f"tokenData {tokenData}")
+      return {'status':200,'tokenData': tokenData}
+   except:
+      return {'status':402,'tokenData': "ERROR!!"}
 
 @app.route('/api/checkin', methods=['POST']) 
 @token_required
 def attendance(current_user):
-   temperature =  request.form.get("temperature",type = Float)
+   temperature =  request.form.get("temperature",type = float)
    qrString =  request.form.get("qrString",type = str)
-   checkget_qr_code(qrString)
-   if qrString["status"]!=200:  
+   qrStringData=checkget_qr_code(qrString)
+   app.logger.debug(f"qrStringData {qrStringData}")
+   app.logger.debug(f"current_user {current_user['user'].nisn}")
+   if qrStringData["status"]!=200:  
       return jsonify({'message': 'qr_code is invalid'})
    else:
       app.logger.debug(f"attendance :  {temperature} {qrString} {current_user}")
-      qrData = jwt.decode(qrString, app.config['SECRET_KEY'], algorithms=['HS256'])
-      if current_user["role"]==0 : 
-         checkin = StudentAttendance(nisn=current_user["user"].nisn, temperature=float, check_in=datetime.datetime.now())
-         db.session.add(checkin)  
       if current_user["role"]==1 : 
-         checkin = TeacherAttendance(nign=current_user["user"].nign, temperature=float, check_in=datetime.datetime.now())
+         checkin = StudentAttendance(nisn=current_user["user"].nisn, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.datetime.now())
+         db.session.add(checkin)  
+      if current_user["role"]==0 : 
+         checkin = TeacherAttendance(nign=current_user["user"].nign, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.datetime.now())
          db.session.add(checkin)
       db.session.commit()
       return jsonify({'data':temperature, 'statusMessage':"success", 'status':200})
 
+# @app.route('/api/checkout', methods=['POST']) 
+# @token_required
+# def attendance(current_user):
+#    temperature =  request.form.get("temperature",type = float)
+#    qrString =  request.form.get("qrString",type = str)
+#    qrStringData=checkget_qr_code(qrString)
+#    app.logger.debug(f"qrStringData {qrStringData}")
+#    app.logger.debug(f"current_user {current_user['user'].nisn}")
+#    if qrStringData["status"]!=200:  
+#       return jsonify({'message': 'qr_code is invalid'})
+#    else:
+#       app.logger.debug(f"attendance :  {temperature} {qrString} {current_user}")
+#       if current_user["role"]==1 : 
+#          checkin = StudentAttendance(nisn=current_user["user"].nisn, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.datetime.now())
+#          db.session.add(checkin)  
+#       if current_user["role"]==0 : 
+#          checkin = TeacherAttendance(nign=current_user["user"].nign, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.datetime.now())
+#          db.session.add(checkin)
+#       db.session.commit()
+#       return jsonify({'data':temperature, 'statusMessage':"success", 'status':200})
 
-@app.route('/getQrCode', methods=['GET'])
-def get_qr_code():
-   location=request.args.get("location")
-   token = jwt.encode({'location':location, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=60)}, app.config['SECRET_KEY'])
-   return jsonify({'status':200,'qrToken': token})
 
-def checkget_qr_code(qrString):
-
-   try:
-      tokenData = jwt.decode(qrString, app.config['SECRET_KEY'], algorithms=['HS256'])
-      return jsonify({'status':200,'tokenData': tokenData})
-   except:
-      return jsonify({'status':402,'tokenData': "ERROR!!"})
-
-@app.route('/api/user', methods=['GET'])
+@app.route('/api/report', methods=['GET'])
 @token_required
-def get_all_users(current_user):
+def get_report(current_user):
+   print("current_user ", current_user["user"])
+   if current_user["role"]==0 : 
+      userAttendances = TeacherAttendance.query.filter_by(nign=current_user["user"].nign).all()
+      attendance = []
+      for userAttendance in userAttendances:
+         attendance.append(
+            {
+               'temperature':str(userAttendance.temperature),
+               'location':userAttendance.location,
+               'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
+               'chek_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
+            }
+         )
+      return jsonify({'status':200,'attendance': attendance})
    if current_user["role"]==1 : 
-      return jsonify({'status': 401, 'messege':"not a teacher"})
-   print("current_user ", current_user["user"].fullname)
-   users = Student.query.all() 
-   result = []   
-   for user in users:   
-       user_data = {}   
-       user_data['nisn'] = user.nisn  
-       user_data['name'] = user.fullname
-       result.append(user_data)   
-   return jsonify({'status':200,'users': result})
+      print("current_user ", current_user["user"].nisn)
+      userAttendances = StudentAttendance.query.filter_by(nisn=current_user["user"].nisn).all()
+      attendance = []
+      print("userAttendances ", userAttendances)
+      for userAttendance in userAttendances:
+         attendance.append(
+            {
+               'temperature':str(userAttendance.temperature),
+               'location':userAttendance.location,
+               'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
+               'chek_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
+            }
+         )
+         print("user_data ", attendance)
+      return jsonify({'status':200,'attendance': attendance})
+   
+
+# @app.route('/api/user', methods=['GET'])
+# @token_required
+# def get_all_users(current_user):
+#    if current_user["role"]==1 : 
+#       return jsonify({'status': 401, 'messege':"not a teacher"})
+#    print("current_user ", current_user["user"].fullname)
+#    users = Student.query.all() 
+#    result = []   
+#    for user in users:   
+#        user_data = {}   
+#        user_data['nisn'] = user.nisn  
+#        user_data['name'] = user.fullname
+#        result.append(user_data)   
+#    return jsonify({'status':200,'users': result})
 
 
 @app.route('/api/kelas', methods=['GET'])
@@ -160,6 +217,9 @@ def get_mapel(current_user):
        user_data['name'] = user.fullname
        result.append(user_data)   
    return jsonify({'status':200,'users': result})  
+
+
+
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,4 +1,5 @@
 import datetime
+from tabnanny import check
 from unicodedata import decimal
 import uuid
 import logging
@@ -12,6 +13,7 @@ from auth_middleware import token_required
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
 import json
+from sqlalchemy import and_
 from json import JSONEncoder
 load_dotenv()
 app = Flask(__name__)
@@ -113,29 +115,55 @@ def attendance(current_user):
          checkin = TeacherAttendance(nign=current_user["user"].nign, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.datetime.now())
          db.session.add(checkin)
       db.session.commit()
-      return jsonify({'data':temperature, 'statusMessage':"success", 'status':200})
+      return jsonify({'checkout':temperature, 'statusMessage':"success", 'status':200})
+
+@app.route('/api/last_checkin', methods=['GET'])
+@token_required
+def get_last_chekin(current_user):
+   print("current_user ", current_user["user"])
+   if current_user["role"]==0 : 
+      userAttendances = TeacherAttendance.query.filter(and_(TeacherAttendance.nign==current_user["user"].nign, TeacherAttendance.check_out==None)).all()
+      attendance = []
+      for userAttendance in userAttendances:
+         attendance.append({
+            'id':userAttendance.id_ta,
+            'temperature':str(userAttendance.temperature),
+            'location':userAttendance.location,
+            'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
+         })
+      return jsonify({'status':200,'attendance': attendance})
+   if current_user["role"]==1 : 
+      print("current_user ", current_user["user"].nisn)
+      userAttendances = StudentAttendance.query.filter(and_(StudentAttendance.nisn==current_user["user"].nisn, StudentAttendance.check_out==None)).all()
+      attendance = []
+      print("userAttendances ", userAttendances)
+      for userAttendance in userAttendances:
+         attendance.append(
+            {
+               'id':userAttendance.id_sa,
+               'temperature':str(userAttendance.temperature),
+               'location':userAttendance.location,
+               'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
+            }
+         )
+         print("user_data ", attendance)
+      return jsonify({'status':200,'attendance': attendance})
 
 # @app.route('/api/checkout', methods=['POST']) 
 # @token_required
 # def attendance(current_user):
-#    temperature =  request.form.get("temperature",type = float)
-#    qrString =  request.form.get("qrString",type = str)
-#    qrStringData=checkget_qr_code(qrString)
-#    app.logger.debug(f"qrStringData {qrStringData}")
-#    app.logger.debug(f"current_user {current_user['user'].nisn}")
-#    if qrStringData["status"]!=200:  
-#       return jsonify({'message': 'qr_code is invalid'})
-#    else:
-#       app.logger.debug(f"attendance :  {temperature} {qrString} {current_user}")
-#       if current_user["role"]==1 : 
-#          checkin = StudentAttendance(nisn=current_user["user"].nisn, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.datetime.now())
-#          db.session.add(checkin)  
-#       if current_user["role"]==0 : 
-#          checkin = TeacherAttendance(nign=current_user["user"].nign, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.datetime.now())
-#          db.session.add(checkin)
-#       db.session.commit()
-#       return jsonify({'data':temperature, 'statusMessage':"success", 'status':200})
-
+#    print("current_user ", current_user["user"])
+#      if current_user["status"]!=200:  
+#           return jsonify({'message': 'qr_code is invalid'})
+#        else:
+#           if current_user["role"]==1 : 
+#              checkout = StudentAttendance(id=current_user["user"].id_sa, check_out=datetime.datetime.now())
+#              db.session.add(checkout)  
+#           if current_user["role"]==0 : 
+#              checkout = TeacherAttendance(id=current_user["user"].id_ta, check_out=datetime.datetime.now())
+#              db.session.add(checkout)
+#           db.session.commit()
+#           return jsonify({'data':check_out, 'statusMessage':"success", 'status':200})
 
 @app.route('/api/report', methods=['GET'])
 @token_required

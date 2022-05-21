@@ -149,21 +149,28 @@ def get_last_chekin(current_user):
          print("user_data ", attendance)
       return jsonify({'status':200,'attendance': attendance})
 
-# @app.route('/api/checkout', methods=['POST']) 
-# @token_required
-# def attendance(current_user):
-#    print("current_user ", current_user["user"])
-#      if current_user["status"]!=200:  
-#           return jsonify({'message': 'qr_code is invalid'})
-#        else:
-#           if current_user["role"]==1 : 
-#              checkout = StudentAttendance(id=current_user["user"].id_sa, check_out=datetime.datetime.now())
-#              db.session.add(checkout)  
-#           if current_user["role"]==0 : 
-#              checkout = TeacherAttendance(id=current_user["user"].id_ta, check_out=datetime.datetime.now())
-#              db.session.add(checkout)
-#           db.session.commit()
-#           return jsonify({'data':check_out, 'statusMessage':"success", 'status':200})
+
+@app.route('/api/check_out', methods=['POST'])
+@token_required
+def check_out(current_user):
+   id =  request.form.get("id",type = str)
+   print(f"id {request.form}")
+   try:
+      if current_user["role"]==0 : 
+         db.session.query(TeacherAttendance).\
+            filter(and_(TeacherAttendance.id_ta==id, TeacherAttendance.nign==current_user["user"].nign ,TeacherAttendance.check_out==None)).\
+            update({TeacherAttendance.check_out: datetime.datetime.now()})
+         db.session.commit()
+      elif current_user["role"]==1 : 
+         db.session.query(StudentAttendance).\
+            filter(and_(StudentAttendance.id_sa==id, StudentAttendance.nisn==current_user["user"].nisn ,StudentAttendance.check_out==None)).\
+            update({StudentAttendance.check_out: datetime.datetime.now()})
+
+         db.session.commit()
+      return jsonify({'status':200,"message":"success"})
+   except:
+      return jsonify({'status':404,"message":"error"})
+
 
 @app.route('/api/report', methods=['GET'])
 @token_required
@@ -178,7 +185,7 @@ def get_report(current_user):
                'temperature':str(userAttendance.temperature),
                'location':userAttendance.location,
                'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
-               'chek_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
+               'check_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
             }
          )
       return jsonify({'status':200,'attendance': attendance})
@@ -193,7 +200,7 @@ def get_report(current_user):
                'temperature':str(userAttendance.temperature),
                'location':userAttendance.location,
                'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
-               'chek_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
+               'check_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
             }
          )
          print("user_data ", attendance)

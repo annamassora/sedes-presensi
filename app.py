@@ -1,4 +1,5 @@
-import datetime
+from datetime import date, datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from tabnanny import check
 from unicodedata import decimal
 import uuid
@@ -60,7 +61,7 @@ def login_user():
    app.logger.debug(user)
    if user!=None:
       if check_password_hash(user.password, auth.password):
-         token = jwt.encode({'public_id': user.public_id, 'role': user.role, 'indentifier': user.indentifier, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])  
+         token = jwt.encode({'public_id': user.public_id, 'role': user.role, 'indentifier': user.indentifier, 'exp' : datetime.utcnow() + timedelta(minutes=30)}, app.config['SECRET_KEY'])  
          current_user=None
          if user.role==0:
             teacher=Teacher.query.filter_by(nign=user.indentifier).first()
@@ -102,6 +103,7 @@ def attendance(current_user):
    temperature =  request.form.get("temperature",type = float)
    qrString =  request.form.get("qrString",type = str)
    qrStringData=checkget_qr_code(qrString)
+   qrStringData=checkget_qr_code(qrString)
    app.logger.debug(f"qrStringData {qrStringData}")
    app.logger.debug(f"current_user {current_user['user'].nisn}")
    if qrStringData["status"]!=200:  
@@ -109,10 +111,10 @@ def attendance(current_user):
    else:
       app.logger.debug(f"attendance :  {temperature} {qrString} {current_user}")
       if current_user["role"]==1 : 
-         checkin = StudentAttendance(nisn=current_user["user"].nisn, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.datetime.now())
+         checkin = StudentAttendance(nisn=current_user["user"].nisn, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.now())
          db.session.add(checkin)  
       if current_user["role"]==0 : 
-         checkin = TeacherAttendance(nign=current_user["user"].nign, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.datetime.now())
+         checkin = TeacherAttendance(nign=current_user["user"].nign, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.now())
          db.session.add(checkin)
       db.session.commit()
       return jsonify({'checkout':temperature, 'statusMessage':"success", 'status':200})
@@ -159,15 +161,14 @@ def check_out(current_user):
       if current_user["role"]==0 : 
          db.session.query(TeacherAttendance).\
             filter(and_(TeacherAttendance.id_ta==id, TeacherAttendance.nign==current_user["user"].nign ,TeacherAttendance.check_out==None)).\
-            update({TeacherAttendance.check_out: datetime.datetime.now()})
+            update({TeacherAttendance.check_out: datetime.now()})
          db.session.commit()
       elif current_user["role"]==1 : 
          db.session.query(StudentAttendance).\
             filter(and_(StudentAttendance.id_sa==id, StudentAttendance.nisn==current_user["user"].nisn ,StudentAttendance.check_out==None)).\
-            update({StudentAttendance.check_out: datetime.datetime.now()})
-
+            update({StudentAttendance.check_out: datetime.now()})
          db.session.commit()
-      return jsonify({'status':200,"message":"success"})
+      return jsonify({'status':200,"message":" "})
    except:
       return jsonify({'status':404,"message":"error"})
 
@@ -176,8 +177,16 @@ def check_out(current_user):
 @token_required
 def get_report(current_user):
    print("current_user ", current_user["user"])
+   #1 bulan
+   #1 belum tentu 30 hari
+   #tahun dan bulan
+   year=request.args.get("year")
+   month=request.args.get("month")
+   print(f"year,month {request.args}")
+   filter_before= date(int(year), int(month)+1, 1)
+   filter_after = filter_before+relativedelta(months=+1)
    if current_user["role"]==0 : 
-      userAttendances = TeacherAttendance.query.filter_by(nign=current_user["user"].nign).all()
+      userAttendances = TeacherAttendance.query.filter(and_(TeacherAttendance.nign==current_user["user"].nign, TeacherAttendance.check_in.between(filter_before,filter_after))).all()
       attendance = []
       for userAttendance in userAttendances:
          attendance.append(
@@ -191,7 +200,7 @@ def get_report(current_user):
       return jsonify({'status':200,'attendance': attendance})
    if current_user["role"]==1 : 
       print("current_user ", current_user["user"].nisn)
-      userAttendances = StudentAttendance.query.filter_by(nisn=current_user["user"].nisn).all()
+      userAttendances = StudentAttendance.query.filter(and_(StudentAttendance.nisn==current_user["user"].nisn, StudentAttendance.check_in.between(filter_before,filter_after))).all()
       attendance = []
       print("userAttendances ", userAttendances)
       for userAttendance in userAttendances:

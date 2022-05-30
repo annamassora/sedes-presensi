@@ -19,6 +19,19 @@ class Login(db.Model):
 		return self.id
 
 #################################
+#####		Admin			#####
+#################################
+
+class Admin(db.Model):  
+	__tablename__ = 'admin'
+	id_admin = db.Column(db.String(50),  primary_key = True,)
+	fullname = db.Column(db.String(50))
+	def __unicode__(self):
+		return self.id
+db.Index('idx_id_admin', Admin.id_admin)
+db.Index('idx_Admin_fullname', Admin.fullname)
+
+#################################
 #####		Siswa			#####
 #################################
 
@@ -181,6 +194,19 @@ db.Index('idx_CourseAttendance_id', CourseAttendance.id_attend)
 db.Index('idx_CourseAttendance_date', CourseAttendance.date)
 
 
+#################################
+#####		QR Code			#####
+#################################
+
+class QRCode(db.Model):  
+	__tablename__ = 'qrcode'
+	id_qr = db.Column(db.Integer,  primary_key = True,autoincrement=True)
+	location= db.Column(db.String(50))
+	qrString= db.Column(db.String(255))
+	def __unicode__(self):
+		return self.id
+db.Index('idx_QRCode_id', QRCode.id_qr)
+db.Index('idx_QRCode_location', QRCode.location)
 
 #################################
 #####	Buku Kemajuan		#####

@@ -29,6 +29,12 @@ def token_required(f):
                }
             print(current_user)
 
+         if data['role']==2:
+            current_user = {
+               'user':models.Admin.query.filter_by(id_admin=data['indentifier']).first(),
+               'role':data['role']
+               }
+            print(current_user)
       except:  
          return jsonify({'message': 'token is invalid'})
       return f(current_user, *args,  **kwargs)

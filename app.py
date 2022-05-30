@@ -46,6 +46,9 @@ def signup_user():
    if(role==1):
       student = Student( nisn=indentifier, fullname=username, datebirth=datebirth)
       db.session.add(student)
+   if(role==2):
+      admin = Admin(id_admin=indentifier, fullname=username)
+      db.session.add(admin)
    db.session.commit()
    return jsonify({'message': 'registered successfully'})   
 
@@ -79,16 +82,66 @@ def login_user():
                'datebirth': student.datebirth,
                'role':user.role
                }
+         if user.role==2:
+            admin=Admin.query.filter_by(id_admin=user.indentifier).first()
+            current_user = {
+               'username': admin.fullname,
+               'indentifier': admin.id_admin,
+               'role':user.role
+               }
+
          app.logger.debug(f"current_user : current_user")
          return jsonify({'access':{ 'token' : token, "user":current_user,}, 'status':200})
-   return jsonify({'status':'unauthorized', 'status':600})    
+   return jsonify({'status':'unauthorized', 'status':600})   
 
-@app.route('/getQrCode', methods=['GET'])
-def get_qr_code():
-   location=request.args.get("location")
-   token = jwt.encode({'location':location}, app.config['SECRET_KEY'])
-   return jsonify({'status':200,'qrToken': token})
 
+#Create QRCode
+@app.route('/api/qrcode', methods=['POST'])
+@token_required
+def qr_code(current_user):
+   print(request.form)
+   location =  request.form.get("location", type = str, default = "")
+   if current_user["role"]==2:
+      qrString = jwt.encode({'location':location}, app.config['SECRET_KEY'])
+      qrcode = QRCode(location=location, qrString=qrString)
+      db.session.add(qrcode)
+      db.session.commit()
+      return jsonify({'status':200,'qrString': qrString})
+   return jsonify({'status':600,'message':"unauthorized"})
+   
+
+#Get QRCode
+@app.route('/api/getQrCode', methods=['GET'])
+@token_required
+def get_qr_code(current_user):
+   if current_user["role"]==2:
+      qrcodeList = QRCode.query.all()
+      qrList=[]
+      for qrcode in qrcodeList:
+         qrList.append({
+            'id':qrcode.id_qr,
+            'location':qrcode.location,
+            'qrString':qrcode.qrString,
+         })
+      print(qrList)
+      return jsonify({'status':200,'qrList': qrList})
+   return jsonify({'status':600,'message':"unauthorized"})
+
+
+#Delete QRCode
+@app.route("/api/deleteQrCode", methods=["POST"])
+@token_required
+def qr_delete(current_user):
+   if current_user["role"]==2:
+      id = request.form.get("id",type = int)
+      qrCode = QRCode.query.get(id)
+      db.session.delete(qrCode)
+      db.session.commit()
+      return jsonify({'status':200, 'message':'success'})
+   return jsonify({'status':600,'message':"unauthorized"})
+
+
+#Check QRCode
 def checkget_qr_code(qrString):
    try:
       tokenData = jwt.decode(qrString, app.config['SECRET_KEY'], algorithms=['HS256'])
@@ -103,9 +156,7 @@ def attendance(current_user):
    temperature =  request.form.get("temperature",type = float)
    qrString =  request.form.get("qrString",type = str)
    qrStringData=checkget_qr_code(qrString)
-   qrStringData=checkget_qr_code(qrString)
    app.logger.debug(f"qrStringData {qrStringData}")
-   app.logger.debug(f"current_user {current_user['user'].nisn}")
    if qrStringData["status"]!=200:  
       return jsonify({'message': 'qr_code is invalid'})
    else:
@@ -150,6 +201,7 @@ def get_last_chekin(current_user):
          )
          print("user_data ", attendance)
       return jsonify({'status':200,'attendance': attendance})
+   return jsonify({'status':600,'message':"unauthorized"})
 
 
 @app.route('/api/check_out', methods=['POST'])
@@ -177,15 +229,16 @@ def check_out(current_user):
 @token_required
 def get_report(current_user):
    print("current_user ", current_user["user"])
-   #1 bulan
-   #1 belum tentu 30 hari
-   #tahun dan bulan
+   #get month year selected
    year=request.args.get("year")
    month=request.args.get("month")
    print(f"year,month {request.args}")
    filter_before= date(int(year), int(month)+1, 1)
+   print("filter_before ", filter_before)
    filter_after = filter_before+relativedelta(months=+1)
+   print("filter_after ", filter_after)
    if current_user["role"]==0 : 
+      print("current_user ", current_user["user"].nign)
       userAttendances = TeacherAttendance.query.filter(and_(TeacherAttendance.nign==current_user["user"].nign, TeacherAttendance.check_in.between(filter_before,filter_after))).all()
       attendance = []
       for userAttendance in userAttendances:
@@ -202,7 +255,7 @@ def get_report(current_user):
       print("current_user ", current_user["user"].nisn)
       userAttendances = StudentAttendance.query.filter(and_(StudentAttendance.nisn==current_user["user"].nisn, StudentAttendance.check_in.between(filter_before,filter_after))).all()
       attendance = []
-      print("userAttendances ", userAttendances)
+      # print("userAttendances ", userAttendances)
       for userAttendance in userAttendances:
          attendance.append(
             {
@@ -212,9 +265,176 @@ def get_report(current_user):
                'check_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
             }
          )
-         print("user_data ", attendance)
+         # print("user_data ", attendance)
       return jsonify({'status':200,'attendance': attendance})
-   
+   return jsonify({'status':600,'message':"unauthorized"})
+
+
+#--------------------ADMIN AREA
+# Daftar guru   
+@app.route('/api/teacher', methods=['GET'])
+@token_required
+def get_teacherlist(current_user):
+   print("current_user ", current_user["user"])
+   if current_user["role"]==2 : 
+      userReport = Teacher.query.all()
+      list = []
+      for userReport in userReport:
+         list.append(
+            {
+               'fullname':userReport.fullname,
+               'nign':userReport.nign
+            }
+         )
+      return jsonify({'status':200,'list': list})
+   return jsonify({'status':600,'message':"unauthorized"})
+
+#Daftar Siswa  
+@app.route('/api/student', methods=['GET'])
+@token_required
+def get_studentlist(current_user):
+   print("current_user ", current_user["user"])
+   if current_user["role"]==2 : 
+      userReport = Student.query.all()
+      list = []
+      for userReport in userReport:
+         list.append(
+            {
+               'fullname':userReport.fullname,
+               'nisn':userReport.nisn
+            }
+         )
+      return jsonify({'status':200,'list': list})
+   return jsonify({'status':600,'message':"unauthorized"})
+
+#Report guru   
+@app.route('/api/teacherDetail', methods=['GET'])
+@token_required
+def get_teacherDetail(current_user):
+   print("current_user ", current_user["user"])
+   #get month year selected
+   id = request.args.get("nign")
+   year=request.args.get("year")
+   month=request.args.get("month")
+   print(f"year,month {request.args}")
+   filter_before= date(int(year), int(month)+1, 1)
+   print("filter_before ", filter_before)
+   filter_after = filter_before+relativedelta(months=+1)
+   print("filter_after ", filter_after)
+   if current_user["role"]==2 : 
+      userReports = TeacherAttendance.query.filter(and_(TeacherAttendance.nign==id, TeacherAttendance.check_in.between(filter_before,filter_after))).all()
+      attendance = []
+      for userReport in userReports:
+         attendance.append(
+            {
+               'temperature':str(userReport.temperature),
+               'location':userReport.location,
+               'check_in':userReport.check_in.strftime("%d-%b-%Y %H:%M"),
+               'check_out':userReport.check_out.strftime("%d-%b-%Y %H:%M") if userReport.check_out!=None else "0",
+            }
+         )
+      return jsonify({'status':200,'attendance': attendance})
+   return jsonify({'status':600,'message':"unauthorized"})
+
+#Report Siswa  
+@app.route('/api/studentDetail', methods=['GET'])
+@token_required
+def get_studentDetail(current_user):
+   print("current_user ", current_user["user"])
+   #get month year selected
+   id = request.args.get("nisn")
+   year=request.args.get("year")
+   month=request.args.get("month")
+   print(f"year,month {request.args}")
+   filter_before= date(int(year), int(month)+1, 1)
+   print("filter_before ", filter_before)
+   filter_after = filter_before+relativedelta(months=+1)
+   print("filter_after ", filter_after)
+   if current_user["role"]==2 : 
+      userReports = StudentAttendance.query.filter(and_(StudentAttendance.nisn==id, StudentAttendance.check_in.between(filter_before,filter_after))).all()
+      attendance = []
+      for userReport in userReports:
+         attendance.append(
+            {
+               'temperature':str(userReport.temperature),
+               'location':userReport.location,
+               'check_in':userReport.check_in.strftime("%d-%b-%Y %H:%M"),
+               'check_out':userReport.check_out.strftime("%d-%b-%Y %H:%M") if userReport.check_out!=None else "0",
+            }
+         )
+      return jsonify({'status':200,'attendance': attendance})
+   return jsonify({'status':600,'message':"unauthorized"})
+
+#add Guru
+@app.route('/api/addTeacher', methods=['POST'])
+@token_required
+def addTeacher(current_user):  
+   print(request.form)
+   username =  request.form.get("username", type = str, default = "")
+   datebirth =  request.form.get("datebirth", type = str, default = "")
+   indentifier =  request.form.get("identifier", type = str, default = "")  
+   if current_user["role"]==2:
+      try:
+         hashed_password = generate_password_hash(datebirth, method='sha256')
+         new_user = Login(public_id=str(uuid.uuid4()), password=hashed_password, indentifier=indentifier, role=0)
+         db.session.add(new_user)
+         teacher = Teacher(nign=indentifier, fullname=username, datebirth=datebirth)
+         db.session.add(teacher)
+         db.session.commit()
+         return jsonify({'status':200, 'message': 'registered successfully' })
+      except:
+         return jsonify({'status':400, 'message': 'registered Failed' })
+      
+   return jsonify({'status':600,'message':"unauthorized"})
+
+
+#add Siswa
+@app.route('/api/addStudent', methods=['POST'])
+@token_required
+def addStudent(current_user):  
+   print(request.form)
+   username =  request.form.get("username", type = str, default = "")
+   datebirth =  request.form.get("datebirth", type = str, default = "")
+   indentifier =  request.form.get("identifier", type = str, default = "")  
+   if current_user["role"]==2:
+      try:
+         hashed_password = generate_password_hash(datebirth, method='sha256')
+         new_user = Login(public_id=str(uuid.uuid4()), password=hashed_password, indentifier=indentifier, role=1)
+         db.session.add(new_user)
+         student = Student(nisn=indentifier, fullname=username, datebirth=datebirth)
+         db.session.add(student)
+         db.session.commit()
+         return jsonify({'status':200, 'message': 'registered successfully' })
+      except:
+         return jsonify({'status':400, 'message': 'registered Failed' })
+      
+   return jsonify({'status':600,'message':"unauthorized"})
+
+
+#Delete Teacher
+@app.route("/api/deleteTeacher", methods=["POST"])
+@token_required
+def deleteTeacher(current_user):
+   if current_user["role"]==2:
+      id = request.form.get("id",type = str)
+      teacher =Teacher.query.get(id)
+      db.session.delete(teacher)
+      db.session.commit()
+      return jsonify({'status':200, 'message':'success'})
+   return jsonify({'status':600,'message':"unauthorized"})
+
+
+#Delete Student
+@app.route("/api/deleteStudent", methods=["POST"])
+@token_required
+def deleteStudent(current_user):
+   if current_user["role"]==2:
+      id = request.form.get("id",type = str)
+      student =Student.query.get(id)
+      db.session.delete(student)
+      db.session.commit()
+      return jsonify({'status':200, 'message':'success'})
+   return jsonify({'status':600,'message':"unauthorized"})
 
 # @app.route('/api/user', methods=['GET'])
 # @token_required

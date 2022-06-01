@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from io import StringIO
 from dateutil.relativedelta import relativedelta
 from tabnanny import check
 from unicodedata import decimal
@@ -7,7 +8,7 @@ import logging
 from xml.dom.minidom import Identified
 import jwt, os
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify
+from flask import Flask, make_response, request, jsonify
 from sqlalchemy import Float, String, null
 from models import db
 from auth_middleware import token_required
@@ -16,6 +17,9 @@ from flask_cors import CORS
 import json
 from sqlalchemy import and_
 from json import JSONEncoder
+from flask import render_template, request, redirect
+import csv
+
 load_dotenv()
 app = Flask(__name__)
 cors = CORS(app, resources={r"/api/*": {"origins": "*"}}) #API TU BUAT APA?
@@ -37,17 +41,17 @@ def signup_user():
    indentifier =  request.form.get("indentifier", type = str, default = "")
    role =  request.form.get("role", type = int, default = "")
    hashed_password = generate_password_hash(password, method='sha256')
-
-   new_user = Login(public_id=str(uuid.uuid4()), password=hashed_password, indentifier=indentifier, role=role)
+   public_id=str(uuid.uuid4())
+   new_user = Login(public_id=public_id, password=hashed_password, indentifier=indentifier, role=role)
    db.session.add(new_user)
    if(role==0):
-      teacher = Teacher(nign=indentifier, fullname=username, datebirth=datebirth)
+      teacher = Teacher(nign=indentifier, public_id= public_id, fullname=username, datebirth=datebirth)
       db.session.add(teacher)
    if(role==1):
-      student = Student( nisn=indentifier, fullname=username, datebirth=datebirth)
+      student = Student( nisn=indentifier, public_id= public_id, fullname=username, datebirth=datebirth)
       db.session.add(student)
    if(role==2):
-      admin = Admin(id_admin=indentifier, fullname=username)
+      admin = Admin(id_admin=indentifier, public_id= public_id, fullname=username)
       db.session.add(admin)
    db.session.commit()
    return jsonify({'message': 'registered successfully'})   
@@ -64,7 +68,7 @@ def login_user():
    app.logger.debug(user)
    if user!=None:
       if check_password_hash(user.password, auth.password):
-         token = jwt.encode({'public_id': user.public_id, 'role': user.role, 'indentifier': user.indentifier, 'exp' : datetime.utcnow() + timedelta(minutes=30)}, app.config['SECRET_KEY'])  
+         token = jwt.encode({'public_id': user.public_id, 'role': user.role, 'indentifier': user.indentifier, 'exp' : datetime.utcnow() + timedelta(minutes=6)}, app.config['SECRET_KEY'])  
          current_user=None
          if user.role==0:
             teacher=Teacher.query.filter_by(nign=user.indentifier).first()
@@ -101,6 +105,8 @@ def login_user():
 def qr_code(current_user):
    print(request.form)
    location =  request.form.get("location", type = str, default = "")
+   if location == '':
+      return jsonify({'status':600,'message':"empty location"})
    if current_user["role"]==2:
       qrString = jwt.encode({'location':location}, app.config['SECRET_KEY'])
       qrcode = QRCode(location=location, qrString=qrString)
@@ -115,7 +121,7 @@ def qr_code(current_user):
 @token_required
 def get_qr_code(current_user):
    if current_user["role"]==2:
-      qrcodeList = QRCode.query.all()
+      qrcodeList = QRCode.query.all() 
       qrList=[]
       for qrcode in qrcodeList:
          qrList.append({
@@ -388,6 +394,25 @@ def addTeacher(current_user):
    return jsonify({'status':600,'message':"unauthorized"})
 
 
+#download Guru
+@app.route("/api/downloadTeacherReport", methods=["GET"])
+@token_required
+def downloadTeacherReport(current_user):
+   if current_user["role"]==2:
+      si = StringIO()
+      cw = csv.writer(si)
+      c = TeacherAttendance.query.all()
+      # print(c[0].nign)
+      cw.writerow([ column.name for column in TeacherAttendance.__mapper__.columns])
+      [cw.writerow([getattr(curr, column.name) for column in TeacherAttendance.__mapper__.columns]) for curr in c]
+      response = make_response(si.getvalue())
+      response.headers['Content-Disposition'] = 'attachment; filename=report.csv'
+      response.headers["Content-type"] = "text/csv"
+      return response
+   return jsonify({'status':600,'message':"unauthorized"})
+
+
+
 #add Siswa
 @app.route('/api/addStudent', methods=['POST'])
 @token_required
@@ -411,14 +436,32 @@ def addStudent(current_user):
    return jsonify({'status':600,'message':"unauthorized"})
 
 
+#download Student
+@app.route("/api/downloadStudentReport", methods=["GET"])
+@token_required
+def downloadStudentReport(current_user):
+   if current_user["role"]==2:
+      si = StringIO()
+      cw = csv.writer(si)
+      c = StudentAttendance.query.all()
+      cw.writerow([ column.name for column in StudentAttendance.__mapper__.columns])
+      [cw.writerow([getattr(curr, column.name) for column in StudentAttendance.__mapper__.columns]) for curr in c]
+      response = make_response(si.getvalue())
+      response.headers['Content-Disposition'] = 'attachment; filename=report.csv'
+      response.headers["Content-type"] = "text/csv"
+      return response
+   return jsonify({'status':600,'message':"unauthorized"})
+
 #Delete Teacher
 @app.route("/api/deleteTeacher", methods=["POST"])
 @token_required
 def deleteTeacher(current_user):
    if current_user["role"]==2:
       id = request.form.get("id",type = str)
-      teacher =Teacher.query.get(id)
+      teacher = Teacher.query.get(id)
+      teacherLogin =Login.query.filter(indentifier=id)
       db.session.delete(teacher)
+      db.session.delete(teacherLogin)
       db.session.commit()
       return jsonify({'status':200, 'message':'success'})
    return jsonify({'status':600,'message':"unauthorized"})
@@ -431,10 +474,13 @@ def deleteStudent(current_user):
    if current_user["role"]==2:
       id = request.form.get("id",type = str)
       student =Student.query.get(id)
+      studentLogin =Login.query.filter(indentifier=id)
       db.session.delete(student)
+      db.session.delete(studentLogin)
       db.session.commit()
       return jsonify({'status':200, 'message':'success'})
    return jsonify({'status':600,'message':"unauthorized"})
+
 
 # @app.route('/api/user', methods=['GET'])
 # @token_required

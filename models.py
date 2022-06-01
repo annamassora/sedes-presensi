@@ -10,8 +10,7 @@ db = SQLAlchemy()
 
 class Login(db.Model):  
 	__tablename__ = 'login'
-	id = db.Column(db.Integer,  primary_key = True, autoincrement=True)
-	public_id = db.Column(db.String)
+	public_id = db.Column(db.String(255),  primary_key = True,passive_deletes=True)
 	indentifier=db.Column(db.String(50))
 	password = db.Column(db.String)
 	role=db.Column(db.Integer)
@@ -24,8 +23,10 @@ class Login(db.Model):
 
 class Admin(db.Model):  
 	__tablename__ = 'admin'
-	id_admin = db.Column(db.String(50),  primary_key = True,)
+	id_admin = db.Column(db.String(50),  primary_key = True)
+	public_id = db.Column(db.String(255), db.ForeignKey('login.public_id',ondelete='CASCADE'))
 	fullname = db.Column(db.String(50))
+	login = db.relationship(Login, backref=db.backref("admin", cascade="all,delete"))
 	def __unicode__(self):
 		return self.id
 db.Index('idx_id_admin', Admin.id_admin)
@@ -37,12 +38,14 @@ db.Index('idx_Admin_fullname', Admin.fullname)
 
 class Student(db.Model):  
 	__tablename__ = 'student'
-	nisn = db.Column(db.String(50),  primary_key = True,)
+	nisn = db.Column(db.String(50),  primary_key = True)
 	fullname = db.Column(db.String(50))
 	datebirth = db.Column(db.String(50))
+	public_id = db.Column(db.String(255), db.ForeignKey('login.public_id',ondelete='CASCADE'))
 	id_class = db.Column(db.Integer, db.ForeignKey('class.id_class'))
-	attendance=db.relationship("StudentAttendance")
-	courseAttendance=db.relationship("SCAttendance")
+	login = db.relationship(Login, backref=db.backref("student", cascade="all,delete"))
+	attendance=db.relationship("StudentAttendance", passive_deletes=True)
+	courseAttendance=db.relationship("SCAttendance", passive_deletes=True)
 	def __unicode__(self):
 		return self.id
 db.Index('idx_Student_id', Student.nisn)
@@ -56,13 +59,15 @@ db.Index('idx_Student_class', Student.id_class)
 
 class Teacher(db.Model):  
 	__tablename__ = 'teacher'
-	nign = db.Column(db.String(50),  primary_key = True,)
+	nign = db.Column(db.String(50),  primary_key = True)
 	fullname = db.Column(db.String(50))
 	datebirth = db.Column(db.String(50))
 	homeRoom=db.relationship("Class")
 	course=db.relationship("Course")
-	attendance=db.relationship("TeacherAttendance")
-	courseAttendance=db.relationship("TCAttendance")
+	public_id = db.Column(db.String(255), db.ForeignKey('login.public_id',ondelete='CASCADE'))
+	login = db.relationship(Login, backref=db.backref("teacher", cascade="all,delete"))
+	attendance=db.relationship("TeacherAttendance", passive_deletes=True)
+	courseAttendance=db.relationship("TCAttendance", passive_deletes=True)
 	def __unicode__(self):
 		return self.id
 db.Index('idx_Teacher_id', Teacher.nign)
@@ -111,7 +116,7 @@ db.Index('idx_Course_fullname', Course.fullname)
 class StudentAttendance(db.Model):  
 	__tablename__ = 'student_attendance'
 	id_sa = db.Column(db.Integer,  primary_key = True, autoincrement=True)
-	nisn = db.Column(db.String(50), db.ForeignKey('student.nisn'))
+	nisn = db.Column(db.String(50), db.ForeignKey('student.nisn',ondelete='CASCADE'))
 	location = db.Column(db.String(50))
 	temperature = db.Column(db.Numeric(14,2))
 	check_in = db.Column(db.DateTime())
@@ -131,7 +136,7 @@ db.Index('idx_StudentAttendance_checkout', StudentAttendance.check_out)
 class TeacherAttendance(db.Model):  
 	__tablename__ = 'teacher_attendance'
 	id_ta = db.Column(db.Integer,  primary_key = True,autoincrement=True)
-	nign = db.Column(db.String(50), db.ForeignKey('teacher.nign'))
+	nign = db.Column(db.String(50), db.ForeignKey('teacher.nign',ondelete='CASCADE'))
 	location = db.Column(db.String(50))
 	temperature = db.Column(db.Numeric(14,2))
 	check_in = db.Column(db.DateTime())
@@ -153,7 +158,7 @@ class TCAttendance(db.Model):
 	id_tca = db.Column(db.Integer,  primary_key = True,autoincrement=True)
 	nign = db.Column(db.String(50), db.ForeignKey('teacher.nign'))
 	attend_course = db.Column(db.DateTime())
-	id_attend = db.Column(db.Integer,  db.ForeignKey('course_attendance.id_attend'))
+	id_attend = db.Column(db.Integer,  db.ForeignKey('course_attendance.id_attend',ondelete='CASCADE'))
 	def __unicode__(self):
 		return self.id
 db.Index('idx_TCAttendance_id', TCAttendance.id_tca)
@@ -169,7 +174,7 @@ class SCAttendance(db.Model):
 	id_sca = db.Column(db.Integer,  primary_key = True,autoincrement=True)
 	nisn = db.Column(db.String(50),  db.ForeignKey('student.nisn'))
 	attend_course = db.Column(db.DateTime)
-	id_attend = db.Column(db.Integer,  db.ForeignKey('course_attendance.id_attend'))
+	id_attend = db.Column(db.Integer,  db.ForeignKey('course_attendance.id_attend',ondelete='CASCADE'))
 	def __unicode__(self):
 		return self.id
 db.Index('idx_SCAttendance_id', SCAttendance.id_sca)

@@ -36,6 +36,6 @@ def token_required(f):
                }
             print(current_user)
       except:  
-         return jsonify({'message': 'token is invalid'})
+         return jsonify({'message': 'token is invalid', 'status':401})
       return f(current_user, *args,  **kwargs)
    return decorator 

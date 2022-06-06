@@ -10,7 +10,7 @@ db = SQLAlchemy()
 
 class Login(db.Model):  
 	__tablename__ = 'login'
-	public_id = db.Column(db.String(255),  primary_key = True,passive_deletes=True)
+	public_id = db.Column(db.String(255),  primary_key = True)
 	indentifier=db.Column(db.String(50))
 	password = db.Column(db.String)
 	role=db.Column(db.Integer)

@@ -6,12 +6,17 @@ from unicodedata import decimal
 import uuid
 import logging
 from xml.dom.minidom import Identified
-import jwt, os
+# import jwt, os
 from dotenv import load_dotenv
 from flask import Flask, make_response, request, jsonify
 from sqlalchemy import Float, String, null
 from models import db
-from auth_middleware import token_required
+# from auth_middleware import token_required
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_refresh_token
+from flask_jwt_extended import current_user
+from flask_jwt_extended import jwt_required
+from flask_jwt_extended import JWTManager
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
 import json
@@ -23,14 +28,26 @@ import csv
 load_dotenv()
 app = Flask(__name__)
 cors = CORS(app, resources={r"/api/*": {"origins": "*"}}) #API TU BUAT APA?
-SECRET_KEY = os.environ.get('SECRET_KEY') or 'this is a secret'
-print(SECRET_KEY)
+SECRET_KEY = 'KZq#^Ae||9N2IKn2.G3p+WQ2%45iY(%<+kgk:d}b7AqoO5^GFS>wotNvHaGo"SO'
+# print(SECRET_KEY)
 app.config['SECRET_KEY'] = SECRET_KEY
+
+app.config["JWT_SECRET_KEY"] = SECRET_KEY  # Change this!
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
+jwt = JWTManager(app)
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://sedes:abcdef@localhost:5432/sedes'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 from models import *
+
+@jwt.user_lookup_loader
+def user_lookup_callback(_jwt_header, jwt_data):
+    identity = jwt_data["sub"]
+    return identity
+
 
 @app.route('/api/register', methods=['POST'])
 def signup_user():  
@@ -68,41 +85,47 @@ def login_user():
    app.logger.debug(user)
    if user!=None:
       if check_password_hash(user.password, auth.password):
-         token = jwt.encode({'public_id': user.public_id, 'role': user.role, 'indentifier': user.indentifier, 'exp' : datetime.utcnow() + timedelta(minutes=6)}, app.config['SECRET_KEY'])  
-         current_user=None
+         
+         # token = jwt.encode({'public_id': user.public_id, 'role': user.role, 'indentifier': user.indentifier, 'exp' : datetime.utcnow() + timedelta(minutes=6)}, app.config['SECRET_KEY'])  
+         currentUser=None
          if user.role==0:
-            teacher=Teacher.query.filter_by(nign=user.indentifier).first()
-            current_user = {
+            teacher=Teacher.query.filter_by(nign=user.indentifier).one_or_none()
+            currentUser = {
+               'public_id': user.public_id,
                'username': teacher.fullname,
                'indentifier': teacher.nign,
                'datebirth': teacher.datebirth,
                'role':user.role
                }
          if user.role==1:
-            student=Student.query.filter_by(nisn=user.indentifier).first()
-            current_user = {
+            student=Student.query.filter_by(nisn=user.indentifier).one_or_none()
+            currentUser = {
+               'public_id': user.public_id,
                'username': student.fullname,
                'indentifier': student.nisn,
                'datebirth': student.datebirth,
                'role':user.role
                }
          if user.role==2:
-            admin=Admin.query.filter_by(id_admin=user.indentifier).first()
-            current_user = {
+            admin=Admin.query.filter_by(id_admin=user.indentifier).one_or_none()
+            currentUser = {
+               'public_id': user.public_id,
                'username': admin.fullname,
                'indentifier': admin.id_admin,
                'role':user.role
                }
-
+         access_token = create_access_token(identity=currentUser)
+         refresh_token = create_refresh_token(identity=currentUser)
+         # return jsonify(access_token=access_token, refresh_token=refresh_token)
          app.logger.debug(f"current_user : current_user")
-         return jsonify({'access':{ 'token' : token, "user":current_user,}, 'status':200})
+         return jsonify({'access':{ 'access_token':access_token, 'refresh_token':refresh_token,}, 'user': currentUser, 'status':200})
    return jsonify({'status':'unauthorized', 'status':600})   
 
 
 #Create QRCode
 @app.route('/api/qrcode', methods=['POST'])
-@token_required
-def qr_code(current_user):
+@jwt_required()
+def qr_code():
    print(request.form)
    location =  request.form.get("location", type = str, default = "")
    if location == '':
@@ -118,8 +141,8 @@ def qr_code(current_user):
 
 #Get QRCode
 @app.route('/api/getQrCode', methods=['GET'])
-@token_required
-def get_qr_code(current_user):
+@jwt_required()
+def get_qr_code():
    if current_user["role"]==2:
       qrcodeList = QRCode.query.all() 
       qrList=[]
@@ -136,8 +159,8 @@ def get_qr_code(current_user):
 
 #Delete QRCode
 @app.route("/api/deleteQrCode", methods=["POST"])
-@token_required
-def qr_delete(current_user):
+@jwt_required()
+def qr_delete():
    if current_user["role"]==2:
       id = request.form.get("id",type = int)
       qrCode = QRCode.query.get(id)
@@ -157,8 +180,8 @@ def checkget_qr_code(qrString):
       return {'status':402,'tokenData': "ERROR!!"}
 
 @app.route('/api/checkin', methods=['POST']) 
-@token_required
-def attendance(current_user):
+@jwt_required()
+def attendance():
    temperature =  request.form.get("temperature",type = float)
    qrString =  request.form.get("qrString",type = str)
    qrStringData=checkget_qr_code(qrString)
@@ -177,8 +200,8 @@ def attendance(current_user):
       return jsonify({'checkout':temperature, 'statusMessage':"success", 'status':200})
 
 @app.route('/api/last_checkin', methods=['GET'])
-@token_required
-def get_last_chekin(current_user):
+@jwt_required()
+def get_last_chekin():
    print("current_user ", current_user["user"])
    if current_user["role"]==0 : 
       userAttendances = TeacherAttendance.query.filter(and_(TeacherAttendance.nign==current_user["user"].nign, TeacherAttendance.check_out==None)).all()
@@ -211,8 +234,8 @@ def get_last_chekin(current_user):
 
 
 @app.route('/api/check_out', methods=['POST'])
-@token_required
-def check_out(current_user):
+@jwt_required()
+def check_out():
    id =  request.form.get("id",type = str)
    print(f"id {request.form}")
    try:
@@ -232,9 +255,9 @@ def check_out(current_user):
 
 
 @app.route('/api/report', methods=['GET'])
-@token_required
-def get_report(current_user):
-   print("current_user ", current_user["user"])
+@jwt_required()
+def get_report():
+   print("current_user ", current_user)
    #get month year selected
    year=request.args.get("year")
    month=request.args.get("month")
@@ -244,8 +267,8 @@ def get_report(current_user):
    filter_after = filter_before+relativedelta(months=+1)
    print("filter_after ", filter_after)
    if current_user["role"]==0 : 
-      print("current_user ", current_user["user"].nign)
-      userAttendances = TeacherAttendance.query.filter(and_(TeacherAttendance.nign==current_user["user"].nign, TeacherAttendance.check_in.between(filter_before,filter_after))).all()
+      print("current_user ", current_user["indentifier"])
+      userAttendances = TeacherAttendance.query.filter(and_(TeacherAttendance.nign==current_user["indentifier"], TeacherAttendance.check_in.between(filter_before,filter_after))).all()
       attendance = []
       for userAttendance in userAttendances:
          attendance.append(
@@ -258,8 +281,8 @@ def get_report(current_user):
          )
       return jsonify({'status':200,'attendance': attendance})
    if current_user["role"]==1 : 
-      print("current_user ", current_user["user"].nisn)
-      userAttendances = StudentAttendance.query.filter(and_(StudentAttendance.nisn==current_user["user"].nisn, StudentAttendance.check_in.between(filter_before,filter_after))).all()
+      print("current_user ", current_user["indentifier"])
+      userAttendances = StudentAttendance.query.filter(and_(StudentAttendance.nisn==current_user["indentifier"], StudentAttendance.check_in.between(filter_before,filter_after))).all()
       attendance = []
       # print("userAttendances ", userAttendances)
       for userAttendance in userAttendances:
@@ -279,9 +302,9 @@ def get_report(current_user):
 #--------------------ADMIN AREA
 # Daftar guru   
 @app.route('/api/teacher', methods=['GET'])
-@token_required
-def get_teacherlist(current_user):
-   print("current_user ", current_user["user"])
+@jwt_required()
+def get_teacherlist():
+   print("current_user ", current_user)
    if current_user["role"]==2 : 
       userReport = Teacher.query.all()
       list = []
@@ -297,9 +320,9 @@ def get_teacherlist(current_user):
 
 #Daftar Siswa  
 @app.route('/api/student', methods=['GET'])
-@token_required
-def get_studentlist(current_user):
-   print("current_user ", current_user["user"])
+@jwt_required()
+def get_studentlist():
+   print("current_user ", current_user)
    if current_user["role"]==2 : 
       userReport = Student.query.all()
       list = []
@@ -315,9 +338,9 @@ def get_studentlist(current_user):
 
 #Report guru   
 @app.route('/api/teacherDetail', methods=['GET'])
-@token_required
-def get_teacherDetail(current_user):
-   print("current_user ", current_user["user"])
+@jwt_required()
+def get_teacherDetail():
+   print("current_user ", current_user)
    #get month year selected
    id = request.args.get("nign")
    year=request.args.get("year")
@@ -344,9 +367,9 @@ def get_teacherDetail(current_user):
 
 #Report Siswa  
 @app.route('/api/studentDetail', methods=['GET'])
-@token_required
-def get_studentDetail(current_user):
-   print("current_user ", current_user["user"])
+@jwt_required()
+def get_studentDetail():
+   print("current_user ", current_user)
    #get month year selected
    id = request.args.get("nisn")
    year=request.args.get("year")
@@ -373,8 +396,8 @@ def get_studentDetail(current_user):
 
 #add Guru
 @app.route('/api/addTeacher', methods=['POST'])
-@token_required
-def addTeacher(current_user):  
+@jwt_required()
+def addTeacher():  
    print(request.form)
    username =  request.form.get("username", type = str, default = "")
    datebirth =  request.form.get("datebirth", type = str, default = "")
@@ -396,8 +419,8 @@ def addTeacher(current_user):
 
 #download Guru
 @app.route("/api/downloadTeacherReport", methods=["GET"])
-@token_required
-def downloadTeacherReport(current_user):
+@jwt_required()
+def downloadTeacherReport():
    if current_user["role"]==2:
       si = StringIO()
       cw = csv.writer(si)
@@ -415,8 +438,8 @@ def downloadTeacherReport(current_user):
 
 #add Siswa
 @app.route('/api/addStudent', methods=['POST'])
-@token_required
-def addStudent(current_user):  
+@jwt_required()
+def addStudent():  
    print(request.form)
    username =  request.form.get("username", type = str, default = "")
    datebirth =  request.form.get("datebirth", type = str, default = "")
@@ -438,8 +461,8 @@ def addStudent(current_user):
 
 #download Student
 @app.route("/api/downloadStudentReport", methods=["GET"])
-@token_required
-def downloadStudentReport(current_user):
+@jwt_required()
+def downloadStudentReport():
    if current_user["role"]==2:
       si = StringIO()
       cw = csv.writer(si)
@@ -454,8 +477,8 @@ def downloadStudentReport(current_user):
 
 #Delete Teacher
 @app.route("/api/deleteTeacher", methods=["POST"])
-@token_required
-def deleteTeacher(current_user):
+@jwt_required()
+def deleteTeacher():
    if current_user["role"]==2:
       id = request.form.get("id",type = str)
       teacher = Teacher.query.get(id)
@@ -469,8 +492,8 @@ def deleteTeacher(current_user):
 
 #Delete Student
 @app.route("/api/deleteStudent", methods=["POST"])
-@token_required
-def deleteStudent(current_user):
+@jwt_required()
+def deleteStudent():
    if current_user["role"]==2:
       id = request.form.get("id",type = str)
       student =Student.query.get(id)
@@ -499,11 +522,11 @@ def deleteStudent(current_user):
 
 
 @app.route('/api/kelas', methods=['GET'])
-@token_required
-def get_kelas(current_user):
+@jwt_required()
+def get_kelas():
    if current_user["role"]==1 : 
       return jsonify({'status': 401, 'messege':"not a teacher"})
-   print("current_user ", current_user["user"].fullname)
+   print("current_user ", current_user["username"])
    users = Student.query.all() 
    result = []   
    for user in users:   
@@ -514,21 +537,19 @@ def get_kelas(current_user):
    return jsonify({'status':200,'users': result})
 
 @app.route('/api/mapel', methods=['GET'])
-@token_required
-def get_mapel(current_user):
+@jwt_required()
+def get_mapel():
    # if current_user["role"]==1 : 
    #    return jsonify({'status': 401, 'messege':"not a teacher"})
-   print("current_user ", current_user["user"].fullname)
+   print("current_user ", current_user["username"])
    mapel = Student.query.all() 
    result = []   
-   for user in users:   
+   for user in mapel:   
        user_data = {}   
        user_data['nisn'] = user.nisn  
        user_data['name'] = user.fullname
        result.append(user_data)   
    return jsonify({'status':200,'users': result})  
-
-
 
 
 if __name__ == "__main__":

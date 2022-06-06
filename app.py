@@ -19,7 +19,8 @@ from sqlalchemy import and_
 from json import JSONEncoder
 from flask import render_template, request, redirect
 import csv
-
+import codecs
+import pandas as pd
 load_dotenv()
 app = Flask(__name__)
 cors = CORS(app, resources={r"/api/*": {"origins": "*"}}) #API TU BUAT APA?
@@ -39,7 +40,10 @@ def signup_user():
    datebirth =  request.form.get("datebirth", type = str, default = "")
    password =  request.form.get("password", type = str, default = "")
    indentifier =  request.form.get("indentifier", type = str, default = "")
-   role =  request.form.get("role", type = int, default = "")
+   role =  request.form.get("role", type = int, default = 1)
+   classId =  request.form.get("class_id", type = int, default = 1)
+   if(password==""):
+      password=datebirth
    hashed_password = generate_password_hash(password, method='sha256')
    public_id=str(uuid.uuid4())
    new_user = Login(public_id=public_id, password=hashed_password, indentifier=indentifier, role=role)
@@ -48,7 +52,7 @@ def signup_user():
       teacher = Teacher(nign=indentifier, public_id= public_id, fullname=username, datebirth=datebirth)
       db.session.add(teacher)
    if(role==1):
-      student = Student( nisn=indentifier, public_id= public_id, fullname=username, datebirth=datebirth)
+      student = Student( nisn=indentifier, public_id= public_id, fullname=username, datebirth=datebirth, id_class=classId)
       db.session.add(student)
    if(role==2):
       admin = Admin(id_admin=indentifier, public_id= public_id, fullname=username)
@@ -68,7 +72,7 @@ def login_user():
    app.logger.debug(user)
    if user!=None:
       if check_password_hash(user.password, auth.password):
-         token = jwt.encode({'public_id': user.public_id, 'role': user.role, 'indentifier': user.indentifier, 'exp' : datetime.utcnow() + timedelta(minutes=6)}, app.config['SECRET_KEY'])  
+         token = jwt.encode({'public_id': user.public_id, 'role': user.role, 'indentifier': user.indentifier, 'exp' : datetime.utcnow() + timedelta(days=1)}, app.config['SECRET_KEY'])  
          current_user=None
          if user.role==0:
             teacher=Teacher.query.filter_by(nign=user.indentifier).first()
@@ -412,6 +416,15 @@ def downloadTeacherReport(current_user):
    return jsonify({'status':600,'message':"unauthorized"})
 
 
+#import Teacher
+@app.route('/api/importTeacher', methods=['POST'])
+def import_Teacher():  
+   daftar_guru =  request.files.get('daftar_guru')
+   reader = pd.read_csv(daftar_guru)
+   print(reader)
+   print(daftar_guru)
+   return jsonify({'message': 'registered successfully'}) 
+
 
 #add Siswa
 @app.route('/api/addStudent', methods=['POST'])
@@ -436,7 +449,7 @@ def addStudent(current_user):
    return jsonify({'status':600,'message':"unauthorized"})
 
 
-#download Student
+#download Siswa
 @app.route("/api/downloadStudentReport", methods=["GET"])
 @token_required
 def downloadStudentReport(current_user):
@@ -452,6 +465,28 @@ def downloadStudentReport(current_user):
       return response
    return jsonify({'status':600,'message':"unauthorized"})
 
+#import Student
+@app.route('/api/importStudent', methods=['POST'])
+@token_required
+def import_Student(current_user):
+   if current_user["role"]==2:
+      daftar_siswa =  request.files.get('daftar_siswa')
+      reader = pd.read_csv(daftar_siswa)
+      for siswa in reader.iterrows():
+         public_id=str(uuid.uuid4())
+         password=siswa[1].datebirth
+         hashed_password = generate_password_hash(password, method='sha256')
+         # print(siswa[1].nisn)
+         new_user = Login(public_id=public_id, password=hashed_password, indentifier=siswa[1].nisn, role=1)
+         db.session.add(new_user)
+         student = Student( nisn=siswa[1].nisn, public_id= public_id, fullname=siswa[1].fullname, datebirth=siswa[1].datebirth)
+         db.session.add(student)
+      db.session.commit()
+      return jsonify({'status':200, 'message': 'registered successfully' })
+   return jsonify({'status':600,'message':"unauthorized"})
+
+
+
 #Delete Teacher
 @app.route("/api/deleteTeacher", methods=["POST"])
 @token_required
@@ -459,7 +494,7 @@ def deleteTeacher(current_user):
    if current_user["role"]==2:
       id = request.form.get("id",type = str)
       teacher = Teacher.query.get(id)
-      teacherLogin =Login.query.filter(indentifier=id)
+      teacherLogin =Login.query.filter(Login.indentifier==id).first()
       db.session.delete(teacher)
       db.session.delete(teacherLogin)
       db.session.commit()
@@ -474,7 +509,7 @@ def deleteStudent(current_user):
    if current_user["role"]==2:
       id = request.form.get("id",type = str)
       student =Student.query.get(id)
-      studentLogin =Login.query.filter(indentifier=id)
+      studentLogin =Login.query.filter(Login.indentifier==id).first()
       db.session.delete(student)
       db.session.delete(studentLogin)
       db.session.commit()

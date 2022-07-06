@@ -49,7 +49,7 @@ def signup_user():
    new_user = Login(public_id=public_id, password=hashed_password, indentifier=indentifier, role=role)
    db.session.add(new_user)
    if(role==0):
-      teacher = Teacher(nign=indentifier, public_id= public_id, fullname=username, datebirth=datebirth)
+      teacher = Teacher(nourut=indentifier, public_id= public_id, fullname=username, datebirth=datebirth)
       db.session.add(teacher)
    if(role==1):
       student = Student( nisn=indentifier, public_id= public_id, fullname=username, datebirth=datebirth, id_class=classId)
@@ -57,6 +57,9 @@ def signup_user():
    if(role==2):
       admin = Admin(id_admin=indentifier, public_id= public_id, fullname=username)
       db.session.add(admin)
+   if(role==3):
+      employee = Employee(nourut=indentifier, public_id= public_id, fullname=username,  datebirth=datebirth)
+      db.session.add(employee)
    db.session.commit()
    return jsonify({'message': 'registered successfully'})   
 
@@ -75,10 +78,10 @@ def login_user():
          token = jwt.encode({'public_id': user.public_id, 'role': user.role, 'indentifier': user.indentifier, 'exp' : datetime.utcnow() + timedelta(days=1)}, app.config['SECRET_KEY'])  
          current_user=None
          if user.role==0:
-            teacher=Teacher.query.filter_by(nign=user.indentifier).first()
+            teacher=Teacher.query.filter_by(nourut=user.indentifier).first()
             current_user = {
                'username': teacher.fullname,
-               'indentifier': teacher.nign,
+               'indentifier': teacher.nourut,
                'datebirth': teacher.datebirth,
                'role':user.role
                }
@@ -97,7 +100,14 @@ def login_user():
                'indentifier': admin.id_admin,
                'role':user.role
                }
-
+         if user.role==3:
+            employee=Employee.query.filter_by(nourut=user.indentifier).first()
+            current_user = {
+               'username': employee.fullname,
+               'indentifier': employee.nourut,
+               'datebirth': employee.datebirth,
+               'role':user.role
+               }
          app.logger.debug(f"current_user : current_user")
          return jsonify({'access':{ 'token' : token, "user":current_user,}, 'status':200})
    return jsonify({'status':'unauthorized', 'status':600})   
@@ -163,34 +173,34 @@ def checkget_qr_code(qrString):
 @app.route('/api/checkin', methods=['POST']) 
 @token_required
 def attendance(current_user):
-   temperature =  request.form.get("temperature",type = float)
+   # temperature =  request.form.get("temperature",type = float)
    qrString =  request.form.get("qrString",type = str)
    qrStringData=checkget_qr_code(qrString)
    app.logger.debug(f"qrStringData {qrStringData}")
    if qrStringData["status"]!=200:  
       return jsonify({'message': 'qr_code is invalid'})
    else:
-      app.logger.debug(f"attendance :  {temperature} {qrString} {current_user}")
+      app.logger.debug(f"attendance :  {qrString} {current_user}")
       if current_user["role"]==1 : 
-         checkin = StudentAttendance(nisn=current_user["user"].nisn, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.now())
+         checkin = StudentAttendance(nisn=current_user["user"].nisn, location=qrStringData["tokenData"]["location"], check_in=datetime.now())
          db.session.add(checkin)  
       if current_user["role"]==0 : 
-         checkin = TeacherAttendance(nign=current_user["user"].nign, temperature=temperature,location=qrStringData["tokenData"]["location"], check_in=datetime.now())
+         checkin = TeacherAttendance(nourut=current_user["user"].nourut, location=qrStringData["tokenData"]["location"], check_in=datetime.now())
          db.session.add(checkin)
       db.session.commit()
-      return jsonify({'checkout':temperature, 'statusMessage':"success", 'status':200})
+      return jsonify({'checkout':"success", 'status':200})
 
 @app.route('/api/last_checkin', methods=['GET'])
 @token_required
 def get_last_chekin(current_user):
    print("current_user ", current_user["user"])
    if current_user["role"]==0 : 
-      userAttendances = TeacherAttendance.query.filter(and_(TeacherAttendance.nign==current_user["user"].nign, TeacherAttendance.check_out==None)).all()
+      userAttendances = TeacherAttendance.query.filter(and_(TeacherAttendance.nourut==current_user["user"].nourut, TeacherAttendance.check_out==None)).all()
       attendance = []
       for userAttendance in userAttendances:
          attendance.append({
             'id':userAttendance.id_ta,
-            'temperature':str(userAttendance.temperature),
+            # 'temperature':str(userAttendance.temperature),
             'location':userAttendance.location,
             'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
          })
@@ -204,7 +214,7 @@ def get_last_chekin(current_user):
          attendance.append(
             {
                'id':userAttendance.id_sa,
-               'temperature':str(userAttendance.temperature),
+               # 'temperature':str(userAttendance.temperature),
                'location':userAttendance.location,
                'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
             }
@@ -222,7 +232,7 @@ def check_out(current_user):
    try:
       if current_user["role"]==0 : 
          db.session.query(TeacherAttendance).\
-            filter(and_(TeacherAttendance.id_ta==id, TeacherAttendance.nign==current_user["user"].nign ,TeacherAttendance.check_out==None)).\
+            filter(and_(TeacherAttendance.id_ta==id, TeacherAttendance.nourut==current_user["user"].nourut ,TeacherAttendance.check_out==None)).\
             update({TeacherAttendance.check_out: datetime.now()})
          db.session.commit()
       elif current_user["role"]==1 : 
@@ -248,13 +258,13 @@ def get_report(current_user):
    filter_after = filter_before+relativedelta(months=+1)
    print("filter_after ", filter_after)
    if current_user["role"]==0 : 
-      print("current_user ", current_user["user"].nign)
-      userAttendances = TeacherAttendance.query.filter(and_(TeacherAttendance.nign==current_user["user"].nign, TeacherAttendance.check_in.between(filter_before,filter_after))).all()
+      print("current_user ", current_user["user"].nourut)
+      userAttendances = TeacherAttendance.query.filter(and_(TeacherAttendance.nourut==current_user["user"].nourut, TeacherAttendance.check_in.between(filter_before,filter_after))).all()
       attendance = []
       for userAttendance in userAttendances:
          attendance.append(
             {
-               'temperature':str(userAttendance.temperature),
+               # 'temperature':str(userAttendance.temperature),
                'location':userAttendance.location,
                'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
                'check_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
@@ -269,7 +279,7 @@ def get_report(current_user):
       for userAttendance in userAttendances:
          attendance.append(
             {
-               'temperature':str(userAttendance.temperature),
+               # 'temperature':str(userAttendance.temperature),
                'location':userAttendance.location,
                'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
                'check_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
@@ -293,7 +303,8 @@ def get_teacherlist(current_user):
          list.append(
             {
                'fullname':userReport.fullname,
-               'nign':userReport.nign
+               'nourut':userReport.nourut,
+               'datebirth':userReport.datebirth
             }
          )
       return jsonify({'status':200,'list': list})
@@ -311,7 +322,8 @@ def get_studentlist(current_user):
          list.append(
             {
                'fullname':userReport.fullname,
-               'nisn':userReport.nisn
+               'nisn':userReport.nisn,
+               'datebirth':userReport.datebirth
             }
          )
       return jsonify({'status':200,'list': list})
@@ -323,7 +335,7 @@ def get_studentlist(current_user):
 def get_teacherDetail(current_user):
    print("current_user ", current_user["user"])
    #get month year selected
-   id = request.args.get("nign")
+   id = request.args.get("nourut")
    year=request.args.get("year")
    month=request.args.get("month")
    print(f"year,month {request.args}")
@@ -332,12 +344,12 @@ def get_teacherDetail(current_user):
    filter_after = filter_before+relativedelta(months=+1)
    print("filter_after ", filter_after)
    if current_user["role"]==2 : 
-      userReports = TeacherAttendance.query.filter(and_(TeacherAttendance.nign==id, TeacherAttendance.check_in.between(filter_before,filter_after))).all()
+      userReports = TeacherAttendance.query.filter(and_(TeacherAttendance.nourut==id, TeacherAttendance.check_in.between(filter_before,filter_after))).all()
       attendance = []
       for userReport in userReports:
          attendance.append(
             {
-               'temperature':str(userReport.temperature),
+               # 'temperature':str(userReport.temperature),
                'location':userReport.location,
                'check_in':userReport.check_in.strftime("%d-%b-%Y %H:%M"),
                'check_out':userReport.check_out.strftime("%d-%b-%Y %H:%M") if userReport.check_out!=None else "0",
@@ -366,7 +378,7 @@ def get_studentDetail(current_user):
       for userReport in userReports:
          attendance.append(
             {
-               'temperature':str(userReport.temperature),
+               # 'temperature':str(userReport.temperature),
                'location':userReport.location,
                'check_in':userReport.check_in.strftime("%d-%b-%Y %H:%M"),
                'check_out':userReport.check_out.strftime("%d-%b-%Y %H:%M") if userReport.check_out!=None else "0",
@@ -388,7 +400,7 @@ def addTeacher(current_user):
          hashed_password = generate_password_hash(datebirth, method='sha256')
          new_user = Login(public_id=str(uuid.uuid4()), password=hashed_password, indentifier=indentifier, role=0)
          db.session.add(new_user)
-         teacher = Teacher(nign=indentifier, fullname=username, datebirth=datebirth)
+         teacher = Teacher(nourut=indentifier, fullname=username, datebirth=datebirth)
          db.session.add(teacher)
          db.session.commit()
          return jsonify({'status':200, 'message': 'registered successfully' })
@@ -406,7 +418,7 @@ def downloadTeacherReport(current_user):
       si = StringIO()
       cw = csv.writer(si)
       c = TeacherAttendance.query.all()
-      # print(c[0].nign)
+      # print(c[0].nourut)
       cw.writerow([ column.name for column in TeacherAttendance.__mapper__.columns])
       [cw.writerow([getattr(curr, column.name) for column in TeacherAttendance.__mapper__.columns]) for curr in c]
       response = make_response(si.getvalue())
@@ -418,12 +430,38 @@ def downloadTeacherReport(current_user):
 
 #import Teacher
 @app.route('/api/importTeacher', methods=['POST'])
-def import_Teacher():  
-   daftar_guru =  request.files.get('daftar_guru')
-   reader = pd.read_csv(daftar_guru)
-   print(reader)
-   print(daftar_guru)
-   return jsonify({'message': 'registered successfully'}) 
+@token_required
+def import_Teacher(current_user):
+   if current_user["role"]==2:
+      daftar_guru=  request.files.get('daftar_guru')
+      reader = pd.read_csv(daftar_guru)
+      for guru in reader.iterrows():
+         public_id=str(uuid.uuid4())
+         password=guru[1].datebirth
+         hashed_password = generate_password_hash(password, method='sha256')
+         print(guru)
+         new_user = Login(public_id=public_id, password=hashed_password, indentifier=guru[1].nourut, role=0)
+         db.session.add(new_user)
+         teacher = Teacher( nourut=guru[1].nourut, public_id= public_id, fullname=guru[1].fullname, datebirth=guru[1].datebirth)
+         db.session.add(teacher)
+      db.session.commit()
+      return jsonify({'status':200, 'message': 'registered successfully' })
+   return jsonify({'status':600,'message':"unauthorized"})
+
+
+#Delete Teacher
+@app.route("/api/deleteTeacher", methods=["POST"])
+@token_required
+def deleteTeacher(current_user):
+   if current_user["role"]==2:
+      id = request.form.get("id",type = str)
+      teacher = Teacher.query.get(id)
+      teacherLogin =Login.query.filter(Login.indentifier==id).first()
+      db.session.delete(teacher)
+      db.session.delete(teacherLogin)
+      db.session.commit()
+      return jsonify({'status':200, 'message':'success'})
+   return jsonify({'status':600,'message':"unauthorized"})
 
 
 #add Siswa
@@ -486,22 +524,6 @@ def import_Student(current_user):
    return jsonify({'status':600,'message':"unauthorized"})
 
 
-
-#Delete Teacher
-@app.route("/api/deleteTeacher", methods=["POST"])
-@token_required
-def deleteTeacher(current_user):
-   if current_user["role"]==2:
-      id = request.form.get("id",type = str)
-      teacher = Teacher.query.get(id)
-      teacherLogin =Login.query.filter(Login.indentifier==id).first()
-      db.session.delete(teacher)
-      db.session.delete(teacherLogin)
-      db.session.commit()
-      return jsonify({'status':200, 'message':'success'})
-   return jsonify({'status':600,'message':"unauthorized"})
-
-
 #Delete Student
 @app.route("/api/deleteStudent", methods=["POST"])
 @token_required
@@ -515,6 +537,7 @@ def deleteStudent(current_user):
       db.session.commit()
       return jsonify({'status':200, 'message':'success'})
    return jsonify({'status':600,'message':"unauthorized"})
+
 
 
 # @app.route('/api/user', methods=['GET'])
@@ -533,38 +556,38 @@ def deleteStudent(current_user):
 #    return jsonify({'status':200,'users': result})
 
 
-@app.route('/api/kelas', methods=['GET'])
-@token_required
-def get_kelas(current_user):
-   if current_user["role"]==1 : 
-      return jsonify({'status': 401, 'messege':"not a teacher"})
-   print("current_user ", current_user["user"].fullname)
-   users = Student.query.all() 
-   result = []   
-   for user in users:   
-       user_data = {}   
-       user_data['nisn'] = user.nisn  
-       user_data['name'] = user.fullname
-       result.append(user_data)   
-   return jsonify({'status':200,'users': result})
+# @app.route('/api/kelas', methods=['GET'])
+# @token_required
+# def get_kelas(current_user):
+#    if current_user["role"]==1 : 
+#       return jsonify({'status': 401, 'messege':"not a teacher"})
+#    print("current_user ", current_user["user"].fullname)
+#    users = Student.query.all() 
+#    result = []   
+#    for user in users:   
+#        user_data = {}   
+#        user_data['nisn'] = user.nisn  
+#        user_data['name'] = user.fullname
+#        result.append(user_data)   
+#    return jsonify({'status':200,'users': result})
 
-@app.route('/api/mapel', methods=['GET'])
-@token_required
-def get_mapel(current_user):
-   # if current_user["role"]==1 : 
-   #    return jsonify({'status': 401, 'messege':"not a teacher"})
-   print("current_user ", current_user["user"].fullname)
-   mapel = Student.query.all() 
-   result = []   
-   for user in users:   
-       user_data = {}   
-       user_data['nisn'] = user.nisn  
-       user_data['name'] = user.fullname
-       result.append(user_data)   
-   return jsonify({'status':200,'users': result})  
+# @app.route('/api/mapel', methods=['GET'])
+# @token_required
+# def get_mapel(current_user):
+#    # if current_user["role"]==1 : 
+#    #    return jsonify({'status': 401, 'messege':"not a teacher"})
+#    print("current_user ", current_user["user"].fullname)
+#    mapel = Student.query.all() 
+#    result = []   
+#    for user in users:   
+#        user_data = {}   
+#        user_data['nisn'] = user.nisn  
+#        user_data['name'] = user.fullname
+#        result.append(user_data)   
+#    return jsonify({'status':200,'users': result})  
 
 
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True,host="0.0.0.0")

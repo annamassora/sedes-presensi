@@ -19,7 +19,7 @@ def token_required(f):
          current_user=None
          if data['role']==0:
             current_user = {
-               'user':models.Teacher.query.filter_by(nign=data['indentifier']).first(),
+               'user':models.Teacher.query.filter_by(nourut=data['indentifier']).first(),
                'role':data['role']
                }
          if data['role']==1:

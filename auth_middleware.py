@@ -35,6 +35,12 @@ def token_required(f):
                'role':data['role']
                }
             print(current_user)
+         if data['role']==3:
+            current_user = {
+               'user':models.Employee.query.filter_by(nourut=data['indentifier']).first(),
+               'role':data['role']
+               }
+            print(current_user)
       except:  
          return jsonify({'message': 'token is invalid', 'status':401})
       return f(current_user, *args,  **kwargs)

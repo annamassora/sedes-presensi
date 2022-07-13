@@ -39,13 +39,14 @@ db.Index('idx_Admin_fullname', Admin.fullname)
 class Student(db.Model):  
 	__tablename__ = 'student'
 	nisn = db.Column(db.String(50),  primary_key = True)
-	fullname = db.Column(db.String(50))
+	fullname = db.Column(db.String(255))
 	datebirth = db.Column(db.String(50))
 	public_id = db.Column(db.String(255), db.ForeignKey('login.public_id',ondelete='CASCADE'))
-	id_class = db.Column(db.Integer, db.ForeignKey('class.id_class'))
+	# id_class = db.Column(db.Integer, db.ForeignKey('class.id_class'))
+	id_class = db.Column(db.String(50))
 	login = db.relationship(Login, backref=db.backref("student", cascade="all,delete"))
 	attendance=db.relationship("StudentAttendance", passive_deletes=True)
-	courseAttendance=db.relationship("SCAttendance", passive_deletes=True)
+	# courseAttendance=db.relationship("SCAttendance", passive_deletes=True)
 	def __unicode__(self):
 		return self.id
 db.Index('idx_Student_id', Student.nisn)
@@ -60,14 +61,15 @@ db.Index('idx_Student_class', Student.id_class)
 class Teacher(db.Model):  
 	__tablename__ = 'teacher'
 	nourut = db.Column(db.String(50),  primary_key = True)
-	fullname = db.Column(db.String(50))
+	fullname = db.Column(db.String(255))
 	datebirth = db.Column(db.String(50))
-	homeRoom=db.relationship("Class")
-	course=db.relationship("Course")
+	title = db.Column(db.String(50))
+	# homeRoom = db.relationship("Class")
+	# course = db.relationship("Course")
 	public_id = db.Column(db.String(255), db.ForeignKey('login.public_id',ondelete='CASCADE'))
 	login = db.relationship(Login, backref=db.backref("teacher", cascade="all,delete"))
-	attendance=db.relationship("TeacherAttendance", passive_deletes=True)
-	courseAttendance=db.relationship("TCAttendance", passive_deletes=True)
+	attendance = db.relationship("TeacherAttendance", passive_deletes=True)
+	# courseAttendance = db.relationship("TCAttendance", passive_deletes=True)
 	def __unicode__(self):
 		return self.id
 db.Index('idx_Teacher_id', Teacher.nourut)
@@ -81,8 +83,9 @@ db.Index('idx_Teacher_fullname', Teacher.fullname)
 class Employee(db.Model):  
 	__tablename__ = 'employee'
 	nourut = db.Column(db.String(50),  primary_key = True)
-	fullname = db.Column(db.String(50))
+	fullname = db.Column(db.String(255))
 	datebirth = db.Column(db.String(50))
+	title = db.Column(db.String(50))
 	public_id = db.Column(db.String(255), db.ForeignKey('login.public_id',ondelete='CASCADE'))
 	login = db.relationship(Login, backref=db.backref("employee", cascade="all,delete"))
 	attendance=db.relationship("EmployeeAttendance", passive_deletes=True)
@@ -94,36 +97,35 @@ db.Index('idx_Employee_fullname', Employee.fullname)
 #################################
 #####		Kelas			#####
 #################################
-class Class(db.Model):  
-	__tablename__ = 'class'
-	id_class = db.Column(db.Integer,  primary_key = True,autoincrement=True)
-	fullname = db.Column(db.String(50))
-	period = db.Column(db.String(50))
-	nourut = db.Column(db.String(50), db.ForeignKey('teacher.nourut'))
-	student=db.relationship("Student")
-	course=db.relationship("Course")
-	def __unicode__(self):
-		return self.id
-db.Index('idx_Class_id', Class.id_class)
-db.Index('idx_Class_fullname', Class.fullname)
-db.Index('idx_Class_period', Class.period)
+# class Class(db.Model):  
+# 	__tablename__ = 'class'
+# 	id_class = db.Column(db.Integer,  primary_key = True,autoincrement=True)
+# 	fullname = db.Column(db.String(50))
+# 	period = db.Column(db.String(50))
+# 	student=db.relationship("Student")
+# 	course=db.relationship("Course")
+# 	def __unicode__(self):
+# 		return self.id
+# db.Index('idx_Class_id', Class.id_class)
+# db.Index('idx_Class_fullname', Class.fullname)
+# db.Index('idx_Class_period', Class.period)
 
 
 #################################
 #####		Mapel			#####
 #################################
 
-class Course(db.Model):  
-	__tablename__ = 'course'
-	id_course = db.Column(db.Integer,  primary_key = True,autoincrement=True)
-	fullname = db.Column(db.String(50))
-	id_class = db.Column(db.Integer, db.ForeignKey('class.id_class'))
-	nourut = db.Column(db.String(50), db.ForeignKey('teacher.nourut'))
-	courseAttendance=db.relationship("CourseAttendance")
-	def __unicode__(self):
-		return self.id
-db.Index('idx_Course_id', Course.id_course)
-db.Index('idx_Course_fullname', Course.fullname)
+# class Course(db.Model):  
+# 	__tablename__ = 'course'
+# 	id_course = db.Column(db.Integer,  primary_key = True,autoincrement=True)
+# 	fullname = db.Column(db.String(50))
+# 	# id_class = db.Column(db.Integer, db.ForeignKey('class.id_class'))
+# 	nourut = db.Column(db.String(50), db.ForeignKey('teacher.nourut'))
+# 	courseAttendance=db.relationship("CourseAttendance")
+# 	def __unicode__(self):
+# 		return self.id
+# # db.Index('idx_Course_id', Course.id_course)
+# db.Index('idx_Course_fullname', Course.fullname)
 
 
 #################################
@@ -189,50 +191,50 @@ db.Index('idx_EmployeeAttendance_checkout', EmployeeAttendance.check_out)
 ##### Presensi Mapel Guru	#####
 #################################
 
-class TCAttendance(db.Model):  
-	__tablename__ = 'tc_attendance'
-	id_tca = db.Column(db.Integer,  primary_key = True,autoincrement=True)
-	nourut = db.Column(db.String(50), db.ForeignKey('teacher.nourut'))
-	attend_course = db.Column(db.DateTime())
-	id_attend = db.Column(db.Integer,  db.ForeignKey('course_attendance.id_attend',ondelete='CASCADE'))
-	def __unicode__(self):
-		return self.id
-db.Index('idx_TCAttendance_id', TCAttendance.id_tca)
-db.Index('idx_TCAttendance_attend', TCAttendance.attend_course)
+# class TCAttendance(db.Model):  
+# 	__tablename__ = 'tc_attendance'
+# 	id_tca = db.Column(db.Integer,  primary_key = True,autoincrement=True)
+# 	nourut = db.Column(db.String(50), db.ForeignKey('teacher.nourut'))
+# 	attend_course = db.Column(db.DateTime())
+# 	id_attend = db.Column(db.Integer,  db.ForeignKey('course_attendance.id_attend',ondelete='CASCADE'))
+# 	def __unicode__(self):
+# 		return self.id
+# db.Index('idx_TCAttendance_id', TCAttendance.id_tca)
+# db.Index('idx_TCAttendance_attend', TCAttendance.attend_course)
 
 
 #################################
 ##### Presensi Mapel Siswa	#####
 #################################
 
-class SCAttendance(db.Model):  
-	__tablename__ = 'sc_attendance'
-	id_sca = db.Column(db.Integer,  primary_key = True,autoincrement=True)
-	nisn = db.Column(db.String(50),  db.ForeignKey('student.nisn'))
-	attend_course = db.Column(db.DateTime)
-	id_attend = db.Column(db.Integer,  db.ForeignKey('course_attendance.id_attend',ondelete='CASCADE'))
-	def __unicode__(self):
-		return self.id
-db.Index('idx_SCAttendance_id', SCAttendance.id_sca)
-db.Index('idx_SCAttendance_attend', SCAttendance.attend_course)
+# class SCAttendance(db.Model):  
+# 	__tablename__ = 'sc_attendance'
+# 	id_sca = db.Column(db.Integer,  primary_key = True,autoincrement=True)
+# 	nisn = db.Column(db.String(50),  db.ForeignKey('student.nisn'))
+# 	attend_course = db.Column(db.DateTime)
+# 	id_attend = db.Column(db.Integer,  db.ForeignKey('course_attendance.id_attend',ondelete='CASCADE'))
+# 	def __unicode__(self):
+# 		return self.id
+# db.Index('idx_SCAttendance_id', SCAttendance.id_sca)
+# db.Index('idx_SCAttendance_attend', SCAttendance.attend_course)
 
 
 #################################
 #####	Presensi Mapel		#####
 #################################
 
-class CourseAttendance(db.Model):  
-	__tablename__ = 'course_attendance'
-	id_attend = db.Column(db.Integer,  primary_key = True,autoincrement=True)
-	id_course = db.Column(db.Integer, db.ForeignKey('course.id_course'))
-	id_class = db.Column(db.Integer, db.ForeignKey('class.id_class'))
-	date = db.Column(db.Date)
-	scAttendance=db.relationship("SCAttendance")
-	tcAttendance=db.relationship("TCAttendance")
-	def __unicode__(self):
-		return self.id
-db.Index('idx_CourseAttendance_id', CourseAttendance.id_attend)
-db.Index('idx_CourseAttendance_date', CourseAttendance.date)
+# class CourseAttendance(db.Model):  
+# 	__tablename__ = 'course_attendance'
+# 	id_attend = db.Column(db.Integer,  primary_key = True,autoincrement=True)
+# 	id_course = db.Column(db.Integer, db.ForeignKey('course.id_course'))
+# 	id_class = db.Column(db.Integer, db.ForeignKey('class.id_class'))
+# 	date = db.Column(db.Date)
+# 	scAttendance=db.relationship("SCAttendance")
+# 	tcAttendance=db.relationship("TCAttendance")
+# 	def __unicode__(self):
+# 		return self.id
+# db.Index('idx_CourseAttendance_id', CourseAttendance.id_attend)
+# db.Index('idx_CourseAttendance_date', CourseAttendance.date)
 
 
 #################################
@@ -248,6 +250,22 @@ class QRCode(db.Model):
 		return self.id
 db.Index('idx_QRCode_id', QRCode.id_qr)
 db.Index('idx_QRCode_location', QRCode.location)
+
+
+#################################
+#####		Setting			#####
+#################################
+
+class TimeSetting(db.Model):  
+	__tablename__ = 'time_setting'
+	id_time = db.Column(db.String(20),  primary_key = True)
+	ket = db.Column(db.String(50))
+	jam_masuk= db.Column(db.String(20))
+	jam_keluar= db.Column(db.String(20))
+	
+	def __unicode__(self):
+		return self.id
+db.Index('idx_TimeSetting_id', TimeSetting.id_time)
 
 #################################
 #####	Buku Kemajuan		#####

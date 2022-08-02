@@ -33,6 +33,21 @@ db.Index('idx_id_admin', Admin.id_admin)
 db.Index('idx_Admin_fullname', Admin.fullname)
 
 #################################
+#####	 Kepala Sekolah		#####
+#################################
+
+class Kepsek(db.Model):  
+	__tablename__ = 'kepsek'
+	id_kepsek = db.Column(db.String(50),  primary_key = True)
+	public_id = db.Column(db.String(255), db.ForeignKey('login.public_id',ondelete='CASCADE'))
+	fullname = db.Column(db.String(50))
+	login = db.relationship(Login, backref=db.backref("kepsek", cascade="all,delete"))
+	def __unicode__(self):
+		return self.id
+db.Index('idx_id_kepsek', Kepsek.id_kepsek)
+db.Index('idx_Kepsek_fullname', Kepsek.fullname)
+
+#################################
 #####		Siswa			#####
 #################################
 

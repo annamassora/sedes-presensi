@@ -62,6 +62,9 @@ def signup_user():
    if(role==3):
       employee = Employee(nourut=indentifier, public_id= public_id, fullname=username,  datebirth=datebirth, title=title)
       db.session.add(employee)
+   if(role==4):
+      kepsek = Kepsek(id_kepsek=indentifier, public_id= public_id, fullname=username)
+      db.session.add(kepsek)
    db.session.commit()
    return jsonify({'message': 'registered successfully'})   
 
@@ -108,6 +111,13 @@ def login_user():
                'username': employee.fullname,
                'indentifier': employee.nourut,
                'datebirth': employee.datebirth,
+               'role':user.role
+               }
+         if user.role==4:
+            kepsek=Kepsek.query.filter_by(id_kepsek=user.indentifier).first()
+            current_user = {
+               'username': kepsek.fullname,
+               'indentifier': kepsek.id_kepsek,
                'role':user.role
                }
          app.logger.debug(f"current_user : current_user")
@@ -221,11 +231,15 @@ def qr_delete(current_user):
 
 #Check QRCode
 def checkget_qr_code(qrString):
-   try:
-      tokenData = jwt.decode(qrString, app.config['SECRET_KEY'], algorithms=['HS256'])
-      print(f"tokenData {tokenData}")
-      return {'status':200,'tokenData': tokenData}
-   except:
+   qrcode=db.session.query(QRCode).filter(qrString==qrString).all()
+   if(qrcode):
+      try:
+         tokenData = jwt.decode(qrString, app.config['SECRET_KEY'], algorithms=['HS256'])
+         print(f"qrcode {qrcode}")
+         return {'status':200,'tokenData': tokenData}
+      except:
+         return {'status':402,'tokenData': "ERROR!!"}
+   else:
       return {'status':402,'tokenData': "ERROR!!"}
 
 @app.route('/api/checkin', methods=['POST']) 
@@ -257,39 +271,89 @@ def get_last_chekin(current_user):
    print("current_user ", current_user["user"])
    if current_user["role"]==0 : 
       userAttendances = TeacherAttendance.query.filter(and_(TeacherAttendance.nourut==current_user["user"].nourut, TeacherAttendance.check_out==None)).all()
+      waktu=TimeSetting.query.get("teacher")
       attendance = []
       for userAttendance in userAttendances:
+         FMT = '%H:%M'
+         waktuMasuk=waktu.jam_masuk
+         if(waktuMasuk=="00.00"):
+            waktuMasuk="00:00"
+         s1 = datetime.strptime(str(waktuMasuk), FMT).time()
+         s2 = userAttendance.check_in.time()# for example
+         # tdelta = datetime.strptime(s2, "%d-%b-%Y %H:%M").time() - datetime.strptime(str("00:00"), FMT).time()
+         dateTimeA = datetime.combine(datetime.today(), s1)
+         dateTimeB = datetime.combine(datetime.today(), s2)
+         # Get the difference between datetimes (as timedelta)
+         dateTimeDifference = dateTimeB - dateTimeA
+         # Divide difference in seconds by number of seconds in hour (3600)  
+         dateTimeDifferenceInHours = dateTimeDifference.total_seconds() / 3600
+         if(waktu.jam_masuk=="00.00"):
+            dateTimeDifferenceInHours=""
          attendance.append({
             'id':userAttendance.id_ta,
             # 'temperature':str(userAttendance.temperature),
             'location':userAttendance.location,
             'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
+            "keterlambatan":dateTimeDifferenceInHours
          })
       return jsonify({'status':200,'attendance': attendance})
-   if current_user["role"]==1 : 
+   if current_user["role"]==1 :
+      waktuMasuk=TimeSetting.query.get("student")
       print("current_user ", current_user["user"].nisn)
       userAttendances = StudentAttendance.query.filter(and_(StudentAttendance.nisn==current_user["user"].nisn, StudentAttendance.check_out==None)).all()
+      waktu=TimeSetting.query.get("student")
       attendance = []
-      print("userAttendances ", userAttendances)
       for userAttendance in userAttendances:
-         attendance.append(
-            {
-               'id':userAttendance.id_sa,
-               # 'temperature':str(userAttendance.temperature),
-               'location':userAttendance.location,
-               'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
-            })
+         FMT = '%H:%M'
+         waktuMasuk=waktu.jam_masuk
+         if(waktuMasuk=="00.00"):
+            waktuMasuk="00:00"
+         s1 = datetime.strptime(str(waktuMasuk), FMT).time()
+         s2 = userAttendance.check_in.time()# for example
+         # tdelta = datetime.strptime(s2, "%d-%b-%Y %H:%M").time() - datetime.strptime(str("00:00"), FMT).time()
+         dateTimeA = datetime.combine(datetime.today(), s1)
+         dateTimeB = datetime.combine(datetime.today(), s2)
+         # Get the difference between datetimes (as timedelta)
+         dateTimeDifference = dateTimeB - dateTimeA
+         # Divide difference in seconds by number of seconds in hour (3600)  
+         dateTimeDifferenceInHours = dateTimeDifference.total_seconds() / 3600
+         if(waktu.jam_masuk=="00.00"):
+            dateTimeDifferenceInHours=""
+         attendance.append({
+            'id':userAttendance.id_sa,
+            # 'temperature':str(userAttendance.temperature),
+            'location':userAttendance.location,
+            'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
+            "keterlambatan":dateTimeDifferenceInHours
+         })
+      return jsonify({'status':200,'attendance': attendance})
    if current_user["role"]==3 : 
       userAttendances = EmployeeAttendance.query.filter(and_(EmployeeAttendance.nourut==current_user["user"].nourut, EmployeeAttendance.check_out==None)).all()
+      waktu=TimeSetting.query.get("employee")
       attendance = []
       for userAttendance in userAttendances:
+         FMT = '%H:%M'
+         waktuMasuk=waktu.jam_masuk
+         if(waktuMasuk=="00.00"):
+            waktuMasuk="00:00"
+         s1 = datetime.strptime(str(waktuMasuk), FMT).time()
+         s2 = userAttendance.check_in.time()# for example
+         # tdelta = datetime.strptime(s2, "%d-%b-%Y %H:%M").time() - datetime.strptime(str("00:00"), FMT).time()
+         dateTimeA = datetime.combine(datetime.today(), s1)
+         dateTimeB = datetime.combine(datetime.today(), s2)
+         # Get the difference between datetimes (as timedelta)
+         dateTimeDifference = dateTimeB - dateTimeA
+         # Divide difference in seconds by number of seconds in hour (3600)  
+         dateTimeDifferenceInHours = dateTimeDifference.total_seconds() / 3600
+         if(waktu.jam_masuk=="00.00"):
+            dateTimeDifferenceInHours=""
          attendance.append({
             'id':userAttendance.id_ea,
             # 'temperature':str(userAttendance.temperature),
             'location':userAttendance.location,
             'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
+            "keterlambatan":dateTimeDifferenceInHours
          })
-         print("user_data ", attendance)
       return jsonify({'status':200,'attendance': attendance})
    return jsonify({'status':600,'message':"unauthorized"})
 
@@ -311,9 +375,28 @@ def check_out(current_user):
             update({StudentAttendance.check_out: datetime.now()})
          db.session.commit()
       elif current_user["role"]==3 : 
-         db.session.query(EmployeeAttendance).\
+         userAttendances=db.session.query(EmployeeAttendance).\
             filter(and_(EmployeeAttendance.id_ea==id, EmployeeAttendance.nourut==current_user["user"].nourut ,EmployeeAttendance.check_out==None)).\
             update({EmployeeAttendance.check_out: datetime.now()})
+         # waktu=TimeSetting.query.get("employee")
+         # attendance = []
+         # for userAttendance in userAttendances:
+         #    FMT = '%H:%M'
+         #    waktuKeluar=waktu.jam_keluar
+         #    if(waktuKeluar=="00.00"):
+         #       waktuKeluar="00:00"
+         #    s1 = datetime.strptime(str(waktuKeluar), FMT).time()
+         #    s2 = userAttendance.check_out.time()# for example
+         #    # tdelta = datetime.strptime(s2, "%d-%b-%Y %H:%M").time() - datetime.strptime(str("00:00"), FMT).time()
+         #    dateTimeA = datetime.combine(datetime.today(), s1)
+         #    dateTimeB = datetime.combine(datetime.today(), s2)
+         #    # Get the difference between datetimes (as timedelta)
+         #    dateTimeDifference = dateTimeB - dateTimeA
+         #    # Divide difference in seconds by number of seconds in hour (3600)  
+         #    dateTimeDifferenceInHours = dateTimeDifference.total_seconds() / 3600
+            # if(waktu.jam_keluar=="00.00"):
+            #    # dateTimeDifferenceInHours="" INI ITU HARUSNY DI REPORT GA DISINI nna gapaham vy, KAU GA PAHAM TERUS :(
+            # )
          db.session.commit()
       return jsonify({'status':200,"message":" "})
    except:
@@ -343,6 +426,7 @@ def get_report(current_user):
                'location':userAttendance.location,
                'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
                'check_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
+               
             }
          )
       return jsonify({'status':200,'attendance': attendance})
@@ -352,6 +436,7 @@ def get_report(current_user):
       attendance = []
       # print("userAttendances ", userAttendances)
       for userAttendance in userAttendances:
+         
          attendance.append(
             {
                # 'temperature':str(userAttendance.temperature),
@@ -363,14 +448,31 @@ def get_report(current_user):
    if current_user["role"]==3 : 
       print("current_user ", current_user["user"].nourut)
       userAttendances = EmployeeAttendance.query.filter(and_(EmployeeAttendance.nourut==current_user["user"].nourut, EmployeeAttendance.check_in.between(filter_before,filter_after))).all()
-      attendance = []
+      waktu=TimeSetting.query.get("employee")
+      attendance=[]
       for userAttendance in userAttendances:
+         FMT = '%H:%M'
+         waktuKeluar=waktu.jam_keluar
+         if(waktuKeluar=="00.00"):
+            waktuKeluar="00:00"
+         s1 = datetime.strptime(str(waktuKeluar), FMT).time()
+         s2 = userAttendance.check_out.time()# for example
+         # tdelta = datetime.strptime(s2, "%d-%b-%Y %H:%M").time() - datetime.strptime(str("00:00"), FMT).time()
+         dateTimeA = datetime.combine(datetime.today(), s1)
+         dateTimeB = datetime.combine(datetime.today(), s2)
+         # Get the difference between datetimes (as timedelta)
+         dateTimeDifference = dateTimeB - dateTimeA
+         # Divide difference in seconds by number of seconds in hour (3600)  
+         dateTimeDifferenceInHours = dateTimeDifference.total_seconds() / 3600
+         if(waktu.jam_keluar=="00.00"):
+            dateTimeDifferenceInHours=""
          attendance.append(
             {
                # 'temperature':str(userAttendance.temperature),
                'location':userAttendance.location,
                'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
                'check_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
+               'lembur':dateTimeDifferenceInHours
             }
          )
          # print("user_data ", attendance)
@@ -392,7 +494,7 @@ def get_report(current_user):
 @token_required
 def get_teacherlist(current_user):
    print("current_user ", current_user["user"])
-   if current_user["role"]==2 : 
+   if current_user["role"]==2 or 4 : 
       userReport = Teacher.query.all()
       list = []
       for userReport in userReport:
@@ -498,7 +600,7 @@ def updateTeacher(current_user):
 @app.route("/api/downloadTeacherReport", methods=["GET"])
 @token_required
 def downloadTeacherReport(current_user):
-   if current_user["role"]==2:
+   if current_user["role"]==2 or 4:
       si = StringIO()
       cw = csv.writer(si)
       c = TeacherAttendance.query.all()
@@ -526,7 +628,7 @@ def get_teacherDetail(current_user):
    print("filter_before ", filter_before)
    filter_after = filter_before+relativedelta(months=+1)
    print("filter_after ", filter_after)
-   if current_user["role"]==2 : 
+   if current_user["role"]==2 or 4: 
       userReports = TeacherAttendance.query.filter(and_(TeacherAttendance.nourut==id, TeacherAttendance.check_in.between(filter_before,filter_after))).all()
       attendance = []
       for userReport in userReports:
@@ -713,7 +815,7 @@ def get_studentDetail(current_user):
 @token_required
 def get_employeelist(current_user):
    print("current_user ", current_user["user"])
-   if current_user["role"]==2 : 
+   if current_user["role"]==2: 
       userReport = Employee.query.all()
       list = []
       for userReport in userReport:
@@ -860,21 +962,6 @@ def get_employeeDetail(current_user):
          )
       return jsonify({'status':200,'attendance': attendance})
    return jsonify({'status':600,'message':"unauthorized"})
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

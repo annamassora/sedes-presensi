@@ -603,12 +603,16 @@ def downloadTeacherReport(current_user):
    if current_user["role"]==2 or 4:
       si = StringIO()
       cw = csv.writer(si)
-      c = TeacherAttendance.query.all()
-      # print(c[0].nourut)
-      cw.writerow([ column.name for column in TeacherAttendance.__mapper__.columns])
-      [cw.writerow([getattr(curr, column.name) for column in TeacherAttendance.__mapper__.columns]) for curr in c]
+      # c = TeacherAttendance.query.all()
+      c = db.session.query(
+         Teacher.fullname, TeacherAttendance.nourut, 
+      TeacherAttendance.location,TeacherAttendance.check_in,
+      TeacherAttendance.check_out, ).filter(Teacher.nourut==TeacherAttendance.nourut).all()
+      columnName=['fullname','nourut','location','check_in','check_out']
+      cw.writerow([ column for column in columnName])
+      [cw.writerow([getattr(curr, column) for column in columnName]) for curr in c]
       response = make_response(si.getvalue())
-      response.headers['Content-Disposition'] = 'attachment; filename=report.csv'
+      response.headers['Content-Disposition'] = 'attachment; filename=reportGuru.csv'
       response.headers["Content-type"] = "text/csv"
       return response
    return jsonify({'status':600,'message':"unauthorized"})
@@ -766,11 +770,16 @@ def downloadStudentReport(current_user):
    if current_user["role"]==2:
       si = StringIO()
       cw = csv.writer(si)
-      c = StudentAttendance.query.all()
-      cw.writerow([ column.name for column in StudentAttendance.__mapper__.columns])
-      [cw.writerow([getattr(curr, column.name) for column in StudentAttendance.__mapper__.columns]) for curr in c]
+      # c = StudentAttendance.query.all()
+      c = db.session.query(
+         Student.fullname, StudentAttendance.nisn, 
+      StudentAttendance.location,StudentAttendance.check_in,
+      StudentAttendance.check_out, ).filter(Student.nisn==StudentAttendance.nisn).all()
+      columnName=['fullname','nisn','location','check_in','check_out']
+      cw.writerow([ column for column in columnName])
+      [cw.writerow([getattr(curr, column) for column in columnName]) for curr in c]
       response = make_response(si.getvalue())
-      response.headers['Content-Disposition'] = 'attachment; filename=report.csv'
+      response.headers['Content-Disposition'] = 'attachment; filename=reportSiswa.csv'
       response.headers["Content-type"] = "text/csv"
       return response
    return jsonify({'status':600,'message':"unauthorized"})
@@ -923,12 +932,43 @@ def downloadEmployeeReport(current_user):
    if current_user["role"]==2:
       si = StringIO()
       cw = csv.writer(si)
-      c = EmployeeAttendance.query.all()
-      # print(c[0].nourut)
-      cw.writerow([ column.name for column in EmployeeAttendance.__mapper__.columns])
-      [cw.writerow([getattr(curr, column.name) for column in EmployeeAttendance.__mapper__.columns]) for curr in c]
+      # c = EmployeeAttendance.query.all()
+      userAttendances = db.session.query(
+      Employee.fullname, EmployeeAttendance.nourut, 
+      EmployeeAttendance.location,EmployeeAttendance.check_in,
+      EmployeeAttendance.check_out).filter(Employee.nourut==EmployeeAttendance.nourut).all()
+      waktu=TimeSetting.query.get("employee")
+      attendance=[]
+      for userAttendance in userAttendances:
+         FMT = '%H:%M'
+         waktuKeluar=waktu.jam_keluar
+         if(waktuKeluar=="00.00"):
+            waktuKeluar="00:00"
+         s1 = datetime.strptime(str(waktuKeluar), FMT).time()
+         s2 = userAttendance.check_out.time()# for example
+         # tdelta = datetime.strptime(s2, "%d-%b-%Y %H:%M").time() - datetime.strptime(str("00:00"), FMT).time()
+         dateTimeA = datetime.combine(datetime.today(), s1)
+         dateTimeB = datetime.combine(datetime.today(), s2)
+         # Get the difference between datetimes (as timedelta)
+         dateTimeDifference = dateTimeB - dateTimeA
+         # Divide difference in seconds by number of seconds in hour (3600)  
+         dateTimeDifferenceInHours = dateTimeDifference.total_seconds() / 3600
+         if(waktu.jam_keluar=="00.00"):
+            dateTimeDifferenceInHours=""
+         attendance.append(
+            {
+               'fullname':userAttendance.fullname,
+               'nourut':userAttendance.nourut,
+               'location':userAttendance.location,
+               'check_in':userAttendance.check_in.strftime("%d-%b-%Y %H:%M"),
+               'check_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
+               'lembur':dateTimeDifferenceInHours
+            })
+      columnName=['fullname','nourut','location','check_in','check_out','lembur']
+      cw.writerow([ column for column in columnName])
+      [cw.writerow([obj[column] for column in columnName]) for obj in attendance]
       response = make_response(si.getvalue())
-      response.headers['Content-Disposition'] = 'attachment; filename=report.csv'
+      response.headers['Content-Disposition'] = 'attachment; filename=reportGuru.csv'
       response.headers["Content-type"] = "text/csv"
       return response
    return jsonify({'status':600,'message':"unauthorized"})

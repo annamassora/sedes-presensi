@@ -24,11 +24,11 @@ import codecs
 import pandas as pd
 load_dotenv()
 app = Flask(__name__)
-cors = CORS(app, resources={r"/api/*": {"origins": "*"}}) #API TU BUAT APA?
+cors = CORS(app, resources={r"/api/*": {"origins": "*"}}) 
 SECRET_KEY = os.environ.get('SECRET_KEY') or 'this is a secret'
 print(SECRET_KEY)
 app.config['SECRET_KEY'] = SECRET_KEY
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://sedes:abcdef@localhost:5432/sedes'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:abcdef@localhost:5432/sedes'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
@@ -434,7 +434,7 @@ def get_report(current_user):
       print("current_user ", current_user["user"].nisn)
       userAttendances = StudentAttendance.query.filter(and_(StudentAttendance.nisn==current_user["user"].nisn, StudentAttendance.check_in.between(filter_before,filter_after))).all()
       attendance = []
-      # print("userAttendances ", userAttendances)
+      print("userAttendances ", userAttendances)
       for userAttendance in userAttendances:
          
          attendance.append(
@@ -445,6 +445,7 @@ def get_report(current_user):
                'check_out':userAttendance.check_out.strftime("%d-%b-%Y %H:%M") if userAttendance.check_out!=None else "0",
             }
          )
+      return jsonify({'status':200,'attendance': attendance})
    if current_user["role"]==3 : 
       print("current_user ", current_user["user"].nourut)
       userAttendances = EmployeeAttendance.query.filter(and_(EmployeeAttendance.nourut==current_user["user"].nourut, EmployeeAttendance.check_in.between(filter_before,filter_after))).all()
@@ -990,14 +991,31 @@ def get_employeeDetail(current_user):
    print("filter_after ", filter_after)
    if current_user["role"]==2 : 
       userReports = EmployeeAttendance.query.filter(and_(EmployeeAttendance.nourut==id, EmployeeAttendance.check_in.between(filter_before,filter_after))).all()
+      waktu=TimeSetting.query.get("employee")
       attendance = []
       for userReport in userReports:
+         FMT = '%H:%M'
+         waktuKeluar=waktu.jam_keluar
+         if(waktuKeluar=="00.00"):
+            waktuKeluar="00:00"
+         s1 = datetime.strptime(str(waktuKeluar), FMT).time()
+         s2 = userReport.check_out.time()# for example
+         # tdelta = datetime.strptime(s2, "%d-%b-%Y %H:%M").time() - datetime.strptime(str("00:00"), FMT).time()
+         dateTimeA = datetime.combine(datetime.today(), s1)
+         dateTimeB = datetime.combine(datetime.today(), s2)
+         # Get the difference between datetimes (as timedelta)
+         dateTimeDifference = dateTimeB - dateTimeA
+         # Divide difference in seconds by number of seconds in hour (3600)  
+         dateTimeDifferenceInHours = dateTimeDifference.total_seconds() / 3600
+         if(waktu.jam_keluar=="00.00"):
+            dateTimeDifferenceInHours=""
          attendance.append(
             {
                # 'temperature':str(userReport.temperature),
                'location':userReport.location,
                'check_in':userReport.check_in.strftime("%d-%b-%Y %H:%M"),
                'check_out':userReport.check_out.strftime("%d-%b-%Y %H:%M") if userReport.check_out!=None else "0",
+               'lembur':dateTimeDifferenceInHours
             }
          )
       return jsonify({'status':200,'attendance': attendance})

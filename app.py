@@ -855,7 +855,7 @@ def addEmployee(current_user):
    if current_user["role"]==2:
       try:
          no = db.session.query(func.count(Employee.nourut)).scalar()
-         noUrut = f"G-{no}"
+         noUrut = f"K-{no}"
          hashed_password = generate_password_hash(datebirth, method='sha256')
          new_user = Login(public_id=str(uuid.uuid4()), password=hashed_password, indentifier=noUrut, role=3)
          db.session.add(new_user)

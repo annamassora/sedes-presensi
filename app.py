@@ -518,19 +518,21 @@ def addTeacher(current_user):
    print(request.form)
    username =  request.form.get("username", type = str, default = "")
    datebirth =  request.form.get("datebirth", type = str, default = "")
-   indentifier =  request.form.get("identifier", type = str, default = "") 
+   title =  request.form.get("title", type = str, default = "") 
    if current_user["role"]==2:
       try:
+         no = db.session.query(func.count(Teacher.nourut)).scalar()
+         noUrut = f"G-{no}"
          hashed_password = generate_password_hash(datebirth, method='sha256')
-         new_user = Login(public_id=str(uuid.uuid4()), password=hashed_password, indentifier=indentifier, role=0)
+         new_user = Login(public_id=str(uuid.uuid4()), password=hashed_password, indentifier=noUrut, role=0)
          db.session.add(new_user)
-         teacher = Teacher(nourut=indentifier, fullname=username, datebirth=datebirth)
+         teacher = Teacher(nourut=noUrut, fullname=username, datebirth=datebirth, title=title)
          db.session.add(teacher)
          db.session.commit()
          return jsonify({'status':200, 'message': 'registered successfully' })
       except:
          return jsonify({'status':400, 'message': 'registered Failed' })
-      
+     
    return jsonify({'status':600,'message':"unauthorized"})
 
 
@@ -849,19 +851,21 @@ def addEmployee(current_user):
    print(request.form)
    username =  request.form.get("username", type = str, default = "")
    datebirth =  request.form.get("datebirth", type = str, default = "")
-   indentifier =  request.form.get("identifier", type = str, default = "") 
+   title =  request.form.get("title", type = str, default = "") 
    if current_user["role"]==2:
       try:
+         no = db.session.query(func.count(Employee.nourut)).scalar()
+         noUrut = f"G-{no}"
          hashed_password = generate_password_hash(datebirth, method='sha256')
-         new_user = Login(public_id=str(uuid.uuid4()), password=hashed_password, indentifier=indentifier, role=3)
+         new_user = Login(public_id=str(uuid.uuid4()), password=hashed_password, indentifier=noUrut, role=3)
          db.session.add(new_user)
-         employee = Employee(nourut=indentifier, fullname=username, datebirth=datebirth)
+         employee = Employee(nourut=noUrut, fullname=username, datebirth=datebirth, title=title)
          db.session.add(employee)
          db.session.commit()
          return jsonify({'status':200, 'message': 'registered successfully' })
       except:
          return jsonify({'status':400, 'message': 'registered Failed' })
-      
+     
    return jsonify({'status':600,'message':"unauthorized"})
 
 

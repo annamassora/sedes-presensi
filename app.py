@@ -522,7 +522,7 @@ def addTeacher(current_user):
    if current_user["role"]==2:
       try:
          no = db.session.query(func.count(Teacher.nourut)).scalar()
-         noUrut = f"G-{no}"
+         noUrut = f"G-{no+1}"
          hashed_password = generate_password_hash(datebirth, method='sha256')
          new_user = Login(public_id=str(uuid.uuid4()), password=hashed_password, indentifier=noUrut, role=0)
          db.session.add(new_user)
@@ -530,7 +530,8 @@ def addTeacher(current_user):
          db.session.add(teacher)
          db.session.commit()
          return jsonify({'status':200, 'message': 'registered successfully' })
-      except:
+      except Exception as e:
+         print(e)
          return jsonify({'status':400, 'message': 'registered Failed' })
      
    return jsonify({'status':600,'message':"unauthorized"})
@@ -855,7 +856,7 @@ def addEmployee(current_user):
    if current_user["role"]==2:
       try:
          no = db.session.query(func.count(Employee.nourut)).scalar()
-         noUrut = f"K-{no}"
+         noUrut = f"K-{no+1}"
          hashed_password = generate_password_hash(datebirth, method='sha256')
          new_user = Login(public_id=str(uuid.uuid4()), password=hashed_password, indentifier=noUrut, role=3)
          db.session.add(new_user)
